@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -50,6 +51,11 @@ const defaultAgents = [
   },
 ] as const;
 
+const testUsers = [
+  { email: 'user-a@test.local', displayName: 'Alice (test)', role: 'analyst' as const },
+  { email: 'user-b@test.local', displayName: 'Bob (test)',   role: 'analyst' as const },
+] as const;
+
 async function main(): Promise<void> {
   console.log(`Seeding ${defaultAgents.length} default agents...`);
   for (const agent of defaultAgents) {
@@ -60,6 +66,20 @@ async function main(): Promise<void> {
     });
   }
   console.log(`✓ Seeded ${defaultAgents.length} default agents`);
+
+  // Seed users — prisma connects as 'prsi' which is a superuser with BYPASSRLS,
+  // so the upsert works directly without any role switching even with RLS active.
+  console.log(`Seeding ${testUsers.length} test users...`);
+  const hash = await bcrypt.hash('Password123!', 12);
+  for (const user of testUsers) {
+    const upserted = await prisma.user.upsert({
+      where: { email: user.email },
+      update: { displayName: user.displayName, passwordHash: hash, role: user.role, isActive: true },
+      create: { email: user.email, passwordHash: hash, displayName: user.displayName, role: user.role },
+    });
+    console.log(`  ✓ ${user.email} → id=${upserted.id}`);
+  }
+  console.log(`✓ Seeded ${testUsers.length} test users (password: Password123!)`);
 }
 
 main()
