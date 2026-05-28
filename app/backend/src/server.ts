@@ -1,7 +1,14 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type preHandlerAsyncHookHandler } from 'fastify';
 import cors from '@fastify/cors';
 import { healthzRoute } from './routes/healthz.js';
 import { authRoutes } from './routes/auth.routes.js';
+import { authMiddleware } from './middleware/auth.middleware.js';
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    auth: preHandlerAsyncHookHandler;
+  }
+}
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -15,6 +22,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
 
   await app.register(cors, { origin: true, credentials: true });
+  app.decorate('auth', authMiddleware);
   await app.register(healthzRoute);
   await app.register(authRoutes);
 
