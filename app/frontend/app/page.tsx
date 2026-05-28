@@ -1,14 +1,10 @@
 export default function Home() {
   return (
-    <main style={{ padding: '48px', maxWidth: 800 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>
-        PR Solution Intelligence
-      </h1>
-      <p style={{ color: '#616161' }}>
+    <main className="p-12 max-w-3xl">
+      <h1 className="text-3xl font-bold mb-2 text-text-primary">PR Solution Intelligence</h1>
+      <p className="text-text-secondary">
         M1 — Foundation Core. Visit{' '}
-        <code style={{ background: '#EBF3FE', padding: '2px 6px', borderRadius: 4 }}>
-          /api/healthz
-        </code>{' '}
+        <code className="bg-win-blue-50 px-1.5 py-0.5 rounded-sm font-mono text-sm">/api/healthz</code>{' '}
         to verify the frontend is alive.
       </p>
     </main>

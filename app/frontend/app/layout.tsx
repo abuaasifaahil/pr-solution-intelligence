@@ -1,3 +1,4 @@
+import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
@@ -14,17 +15,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          fontFamily:
-            "'DM Sans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
-          background: '#F5F5F5',
-          color: '#1A1A1A',
-        }}
-      >
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
