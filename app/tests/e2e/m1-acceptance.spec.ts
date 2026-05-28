@@ -18,11 +18,11 @@ test('M1: frontend /api/healthz reports ok', async () => {
   expect(await res.json()).toEqual({ ok: true, service: 'frontend' });
 });
 
-test('M1: frontend home page renders placeholder', async ({ page }) => {
-  await page.goto(FE_URL);
-  await expect(page.getByRole('heading', { name: 'PR Solution Intelligence' })).toBeVisible();
-  await expect(page.getByText('M1 — Foundation Core')).toBeVisible();
-});
+// Note: the M1 "home page renders placeholder" test was removed at M2.12.
+// M2.11 added the AuthGate, so the home page now requires authentication and
+// shows the user greeting instead of the M1 placeholder. M2's
+// m2-auth.spec.ts → "unauthenticated visit to / redirects to /login" covers
+// the equivalent frontend-reachability assertion.
 
 test('M1: database has agents seeded (proxied via healthz.db = ok)', async () => {
   // M1 does not implement /api/v1/agents (that's an M3 deliverable).
