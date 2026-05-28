@@ -1,0 +1,28 @@
+{
+  "name": "@prsi/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --noEmit && echo \"(M1: no bundling yet — tsx serves prod in compose)\"",
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "9.0.1",
+    "@prsi/shared": "workspace:*",
+    "dotenv": "16.4.5",
+    "fastify": "4.28.1",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "20.16.5",
+    "pino-pretty": "11.2.2",
+    "tsx": "4.19.1",
+    "typescript": "5.5.4",
+    "vitest": "1.6.1"
+  }
+}
