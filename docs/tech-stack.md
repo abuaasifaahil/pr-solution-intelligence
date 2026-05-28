@@ -17,7 +17,7 @@ These choices apply to every phase. They are **immutable after Phase 1 ships**; 
 
 | Concern | Choice | Version | Rationale |
 |---|---|---|---|
-| Runtime | Node | 20 LTS | LTS support window through Apr 2026+ |
+| Runtime | Node | 22 LTS | pnpm 11 requires Node ≥22.13; LTS through Apr 2027 |
 | Framework | Fastify | 4.x | ~2× throughput vs Express; schema-based validation |
 | ORM | Prisma | 5.x | Type-safe; auto migrations; introspection |
 | Validation | Zod | 3.x | Shared FE+BE; type inference |

@@ -5,6 +5,8 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    pool: 'forks',
+    isolate: true,
     coverage: {
       reporter: ['text', 'lcov'],
       include: ['src/**/*.ts'],
