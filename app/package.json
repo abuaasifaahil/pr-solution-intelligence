@@ -1,0 +1,30 @@
+{
+  "name": "pr-solution-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PR Solution Intelligence — AlphaMetricX agentic AI platform",
+  "scripts": {
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "up": "docker compose -f infra/docker-compose.yml up -d --build",
+    "down": "docker compose -f infra/docker-compose.yml down",
+    "logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "prisma:format": "pnpm --filter shared prisma format",
+    "prisma:generate": "pnpm --filter shared prisma generate",
+    "prisma:migrate": "pnpm --filter shared prisma migrate dev",
+    "prisma:seed": "pnpm --filter shared prisma db seed"
+  },
+  "devDependencies": {
+    "prettier": "3.3.3",
+    "typescript": "5.5.4"
+  },
+  "packageManager": "pnpm@11.4.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
