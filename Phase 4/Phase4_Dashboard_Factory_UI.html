@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Solution Intelligence — Phase 4: Dashboard Factory</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--b50:#EBF3FE;--b100:#D5E8FC;--b200:#A8D0FA;--b500:#0078D4;--b600:#005EA8;--teal:#00B7C3;--green:#107C10;--red:#D13438;--orange:#CA5010;--purple:#7B2F8A;--bg:#F5F5F5;--card:#FFF;--sb:#F0F0F0;--hover:#E8E8E8;--tp:#1A1A1A;--ts:#616161;--tt:#8E8E8E;--bd:#E0E0E0;--bs:#F0F0F0;--s4:0 2px 4px rgba(0,0,0,.04),0 4px 8px rgba(0,0,0,.08);--s8:0 4px 8px rgba(0,0,0,.04),0 8px 16px rgba(0,0,0,.08);--s64:0 16px 32px rgba(0,0,0,.08),0 32px 64px rgba(0,0,0,.12);--rm:8px;--rl:12px;--rp:9999px;--ease:cubic-bezier(.25,.1,.25,1);--f:'DM Sans','Segoe UI',system-ui,sans-serif;--m:'Cascadia Code','Fira Code',monospace}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html{font-size:14px;-webkit-font-smoothing:antialiased}body{font-family:var(--f);background:var(--bg);color:var(--tp);overflow:hidden;height:100vh}button{font-family:inherit;cursor:pointer;border:none;background:none}input,select{font-family:inherit}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#C4C4C4;border-radius:3px}
+.app{display:flex;height:100vh}
+.side{width:258px;min-width:258px;background:var(--sb);border-right:1px solid var(--bd);display:flex;flex-direction:column}
+.s-h{padding:14px 14px 6px;display:flex;align-items:center;gap:10px}.s-i{width:30px;height:30px;background:var(--b500);border-radius:4px;display:flex;align-items:center;justify-content:center}.s-i svg{width:16px;height:16px}.s-n{font-size:.92rem;font-weight:700}
+.s-new{margin:6px 10px;padding:9px 14px;background:var(--b500);color:#fff;border-radius:var(--rm);font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:8px;transition:background .15s}.s-new:hover{background:#1A86D8}
+.s-lbl{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--tt);padding:10px 18px 3px}
+.s-chs{flex:1;overflow-y:auto;padding:3px 10px}.s-ch{padding:9px 10px;border-radius:var(--rm);font-size:.82rem;color:var(--ts);cursor:pointer;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.s-ch:hover{background:var(--hover)}.s-ch.a{background:var(--b50);color:var(--b600);font-weight:500}
+.s-u{padding:10px 14px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:9px}.s-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--b500),var(--teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.78rem;font-weight:700}
+.mn{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tb{height:48px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;background:var(--card);border-bottom:1px solid var(--bs)}.tb-t{font-size:.95rem;font-weight:600}.tb-bg{padding:2px 10px;border-radius:var(--rp);font-size:.72rem;font-weight:600;background:#F3E5F5;color:var(--purple);margin-left:10px}
+.cht{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.mg{display:flex;gap:10px;max-width:820px;animation:mi .3s var(--ease)}@keyframes mi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.mg.u{align-self:flex-end;flex-direction:row-reverse}
+.mg-a{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700}
+.mg.ai .mg-a{background:linear-gradient(135deg,var(--b500),var(--teal));color:#fff}.mg.u .mg-a{background:var(--hover);color:var(--ts)}
+.mg-b{padding:10px 14px;border-radius:var(--rl);font-size:.88rem;line-height:1.55;max-width:660px}.mg.ai .mg-b{background:var(--card);border:1px solid var(--bd)}.mg.u .mg-b{background:var(--b500);color:#fff}
+/* Design Agent Processing */
+.da-card{background:var(--card);border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden;animation:mi .3s var(--ease)}
+.da-h{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bs)}.da-sp{width:18px;height:18px;border:2.5px solid var(--bd);border-top-color:var(--purple);border-radius:50%;animation:sp .7s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}.da-t{font-size:.88rem;font-weight:600;flex:1}.da-badge{padding:2px 8px;border-radius:var(--rp);font-size:.68rem;font-weight:600;background:#F3E5F5;color:var(--purple)}
+.da-bd{padding:14px 16px}
+.da-steps{display:flex;flex-direction:column;gap:5px}.da-sr{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:.8rem;color:var(--ts)}.da-si{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.6rem}.da-sr.d .da-si{background:#E8F5E9;color:var(--green)}.da-sr.a .da-si{background:#F3E5F5;color:var(--purple)}.da-sr.p .da-si{background:#F5F5F5;color:var(--tt)}.da-sr.d{color:var(--tp)}.da-sr.a{color:var(--purple);font-weight:500}.da-stm{margin-left:auto;font-size:.7rem;color:var(--tt);font-family:var(--m)}
+/* Chip-Up Dashboard Artifact */
+.cu{margin-top:8px;animation:mi .3s var(--ease)}.cu-c{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--card);border:2px solid var(--b200);border-radius:var(--rl);cursor:pointer;transition:all .25s var(--ease)}.cu-c:hover{border-color:var(--b500);box-shadow:var(--s8);transform:translateY(-2px)}
+.cu-ico{width:40px;height:40px;border-radius:var(--rm);background:linear-gradient(135deg,var(--purple),var(--b500));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;flex-shrink:0}
+.cu-inf{flex:1}.cu-tl{font-size:.9rem;font-weight:700}.cu-mt{font-size:.72rem;color:var(--ts);margin-top:2px}
+.cu-act{display:flex;gap:4px;flex-wrap:wrap}.cu-btn{padding:5px 12px;border-radius:4px;font-size:.72rem;font-weight:500;color:var(--ts);transition:all .15s;white-space:nowrap}.cu-btn:hover{background:var(--hover);color:var(--tp)}.cu-btn.pr{background:var(--b500);color:#fff}.cu-btn.pr:hover{background:#1A86D8}
+/* Expanded Dashboard */
+.cu-e{display:none;border:2px solid var(--b200);border-radius:var(--rl);overflow:hidden;box-shadow:var(--s8);background:var(--card)}.cu-e.op{display:block}
+.cu-tb{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg);border-bottom:1px solid var(--bd)}.cu-tb-l{display:flex;align-items:center;gap:8px}.cu-tb-t{font-size:.85rem;font-weight:600}
+.cu-tabs{display:flex;gap:2px;background:var(--sb);border-radius:4px;padding:2px}.cu-tab{padding:5px 12px;border-radius:4px;font-size:.76rem;font-weight:500;color:var(--ts);transition:all .15s}.cu-tab:hover{color:var(--tp)}.cu-tab.a{background:var(--card);color:var(--b500);font-weight:600}
+.cu-ct{height:520px;overflow-y:auto;background:var(--bg)}
+
+/* ═══ DASHBOARD CONTENT ═══ */
+.dash{padding:16px;max-width:1200px;margin:0 auto}
+.dash-header{margin-bottom:16px}.dash-title{font-size:1.2rem;font-weight:700;color:var(--tp)}.dash-sub{font-size:.78rem;color:var(--ts);margin-top:2px}
+/* KPI Strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--rm);padding:14px;position:relative;overflow:hidden}.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--kpi-color,var(--b500))}.kpi-val{font-size:1.5rem;font-weight:700;color:var(--tp);letter-spacing:-.5px}.kpi-lbl{font-size:.72rem;color:var(--ts);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}.kpi-delta{font-size:.7rem;font-weight:600;margin-top:4px}.kpi-delta.up{color:var(--green)}.kpi-delta.down{color:var(--red)}
+/* Chart Grid */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.chart-card{background:var(--card);border:1px solid var(--bd);border-radius:var(--rm);padding:14px}.chart-card.full{grid-column:1/-1}
+.chart-title{font-size:.85rem;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}.chart-title span{font-size:.68rem;color:var(--tt);font-weight:400}
+.chart-wrap{position:relative;height:200px}
+/* Tab bar for dashboard sections */
+.dash-tabs{display:flex;gap:2px;background:var(--sb);border-radius:var(--rm);padding:3px;margin-bottom:16px;width:fit-content}
+.dash-tab{padding:7px 16px;border-radius:6px;font-size:.8rem;font-weight:500;color:var(--ts);transition:all .15s}.dash-tab:hover{color:var(--tp)}.dash-tab.a{background:var(--card);color:var(--b500);font-weight:600;box-shadow:var(--s4)}
+/* Entity table */
+.ent-tbl{width:100%;border-collapse:collapse;font-size:.78rem}.ent-tbl th{background:var(--b500);color:#fff;padding:7px 10px;text-align:left;font-weight:600}.ent-tbl td{padding:6px 10px;border-bottom:1px solid var(--bs)}.ent-tbl tr:nth-child(even){background:var(--bg)}.ent-tbl tr:hover{background:var(--b50)}
+/* Signal cards */
+.sig-card{background:var(--bg);border-left:3px solid var(--orange);border-radius:0 var(--rm) var(--rm) 0;padding:10px 14px;margin-bottom:8px}.sig-type{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}.sig-type.emerging{color:var(--green)}.sig-type.declining{color:var(--red)}.sig-type.anomaly{color:var(--orange)}.sig-desc{font-size:.82rem;font-weight:500;margin-bottom:2px}.sig-reason{font-size:.72rem;color:var(--ts);font-style:italic}
+/* Top Articles */
+.art-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bs)}.art-rank{width:24px;height:24px;border-radius:50%;background:var(--b50);color:var(--b500);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0}.art-info{flex:1;min-width:0}.art-title{font-size:.82rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.art-src{font-size:.68rem;color:var(--ts)}.art-sent{padding:2px 8px;border-radius:var(--rp);font-size:.65rem;font-weight:600;flex-shrink:0}.art-sent.pos{background:#E8F5E9;color:#2E7D32}.art-sent.neg{background:#FFEBEE;color:#C62828}.art-sent.neu{background:#FFF8E1;color:#F57F17}
+
+/* Overlay */
+.ov{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);align-items:center;justify-content:center}.ov.op{display:flex}.ov-c{width:95vw;max-width:1200px;height:90vh;background:var(--card);border-radius:16px;overflow:hidden;box-shadow:var(--s64);display:flex;flex-direction:column}.ov-tb{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--bg);border-bottom:1px solid var(--bd)}.ov-cl{width:32px;height:32px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--ts)}.ov-cl:hover{background:var(--hover);color:var(--red)}.ov-bd{flex:1;overflow:auto;background:var(--bg)}
+
+/* Input */
+.cb{padding:12px 20px;background:var(--card);border-top:1px solid var(--bs)}.cb-w{max-width:780px;margin:0 auto;display:flex;align-items:center;gap:7px}.ci{flex:1;padding:9px 14px;border:1.5px solid var(--bd);border-radius:var(--rl);font-size:.9rem;background:var(--bg);color:var(--tp);outline:none}.ci:focus{border-color:var(--b500)}.cs{width:36px;height:36px;border-radius:var(--rm);background:var(--b500);color:#fff;display:flex;align-items:center;justify-content:center}.cs:hover{background:#1A86D8}.cs svg{width:16px;height:16px}
+@media(max-width:768px){.side{display:none}.chart-grid{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+  <div class="s-h"><div class="s-i"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="s-n">PR Solution AI</span></div>
+  <button class="s-new" onclick="location.reload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Chat</button>
+  <div class="s-lbl">Recent Chats</div>
+  <div class="s-chs"><div class="s-ch a">FreshSip Brand Analysis</div><div class="s-ch">PepsiCo Crisis Coverage</div><div class="s-ch">Dr Pepper Report</div></div>
+  <div class="s-u"><div class="s-av">KB</div><div><div style="font-size:.82rem;font-weight:600">KhadarBasha S.</div><div style="font-size:.7rem;color:var(--tt)">Senior Agentic AI Dev</div></div></div>
+</aside>
+<div class="mn">
+  <div class="tb"><div style="display:flex;align-items:center"><span class="tb-t">PR Impact Agent</span><span class="tb-bg">Phase 4: Dashboard Factory</span></div></div>
+  <div class="cht" id="C"></div>
+  <div class="cb"><div class="cb-w"><input class="ci" id="I" placeholder="Type your message..."><button class="cs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div></div>
+</div>
+</div>
+<div class="ov" id="OV" onclick="if(event.target===this)clOv()"><div class="ov-c"><div class="ov-tb"><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--purple),var(--b500));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.65rem;font-weight:700">D</div><span style="font-size:.9rem;font-weight:600">FreshSip PR Impact Dashboard</span></div><div style="display:flex;gap:6px"><button class="cu-btn" onclick="dlDash()">⬇ Download HTML</button><button class="cu-btn" onclick="alert('Share link copied!')">🔗 Share</button><button class="cu-btn" onclick="alert('Email sent!')">✉ Email</button><button class="ov-cl" onclick="clOv()">✕</button></div></div><div class="ov-bd" id="OB"></div></div></div>
+
+<script>
+const CH=document.getElementById('C');
+function aAI(h,x=''){const d=document.createElement('div');d.className='mg ai';d.innerHTML=`<div class="mg-a">AI</div><div style="flex:1;max-width:720px"><div class="mg-b">${h}</div>${x}</div>`;CH.appendChild(d);CH.scrollTop=CH.scrollHeight}
+function aW(h){const d=document.createElement('div');d.className='mg ai';d.innerHTML=`<div class="mg-a">AI</div><div style="flex:1;max-width:760px">${h}</div>`;CH.appendChild(d);CH.scrollTop=CH.scrollHeight}
+const w=ms=>new Promise(r=>setTimeout(r,ms));
+
+// ═══ Dashboard HTML Builder ═══
+function buildDash(){return `<div class="dash">
+<div class="dash-header"><div class="dash-title">FreshSip — PR Impact Dashboard</div><div class="dash-sub">May 1–20, 2026 · 2,847 articles · Enrichment + Reach · Generated by Design Agent</div></div>
+<div class="kpi-strip">
+  <div class="kpi" style="--kpi-color:var(--b500)"><div class="kpi-val">2,847</div><div class="kpi-lbl">Total Articles</div><div class="kpi-delta up">↑ 23% vs prior period</div></div>
+  <div class="kpi" style="--kpi-color:var(--green)"><div class="kpi-val">68.4%</div><div class="kpi-lbl">Positive Sentiment</div><div class="kpi-delta up">↑ 12.1pp</div></div>
+  <div class="kpi" style="--kpi-color:var(--red)"><div class="kpi-val">8.2%</div><div class="kpi-lbl">Negative Sentiment</div><div class="kpi-delta down">↓ 3.4pp</div></div>
+  <div class="kpi" style="--kpi-color:var(--teal)"><div class="kpi-val">1.24B</div><div class="kpi-lbl">Total Reach</div><div class="kpi-delta up">↑ 31%</div></div>
+  <div class="kpi" style="--kpi-color:var(--orange)"><div class="kpi-val">42</div><div class="kpi-lbl">Signals Detected</div><div class="kpi-delta up">↑ 8 new</div></div>
+  <div class="kpi" style="--kpi-color:var(--purple)"><div class="kpi-val">87.3</div><div class="kpi-lbl">PR Impact Score</div><div class="kpi-delta up">↑ 5.2pts</div></div>
+</div>
+<div class="dash-tabs"><button class="dash-tab a" onclick="showDT(0,this)">Overview</button><button class="dash-tab" onclick="showDT(1,this)">Sentiment</button><button class="dash-tab" onclick="showDT(2,this)">Themes & Entities</button><button class="dash-tab" onclick="showDT(3,this)">Reach & Signals</button><button class="dash-tab" onclick="showDT(4,this)">Top Articles</button></div>
+<div id="DT0" class="dash-section">
+<div class="chart-grid">
+  <div class="chart-card"><div class="chart-title">Sentiment Distribution<span>2,847 articles</span></div><div class="chart-wrap"><canvas id="chSent"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Coverage Volume Trend<span>Daily · May 1–20</span></div><div class="chart-wrap"><canvas id="chTrend"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Top Themes<span>Main themes by frequency</span></div><div class="chart-wrap"><canvas id="chTheme"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Emotion Distribution<span>Primary emotions</span></div><div class="chart-wrap"><canvas id="chEmo"></canvas></div></div>
+</div></div>
+<div id="DT1" class="dash-section" style="display:none"><div class="chart-grid">
+  <div class="chart-card full"><div class="chart-title">Sentiment Over Time<span>Daily breakdown</span></div><div class="chart-wrap" style="height:220px"><canvas id="chSentTime"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Sentiment by Source<span>Top 5 publishers</span></div><div class="chart-wrap"><canvas id="chSentSrc"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Sentiment Confidence<span>Distribution of scores</span></div><div class="chart-wrap"><canvas id="chConf"></canvas></div></div>
+</div></div>
+<div id="DT2" class="dash-section" style="display:none"><div class="chart-grid">
+  <div class="chart-card"><div class="chart-title">Entity Network<span>Top 15 entities</span></div>
+    <table class="ent-tbl"><thead><tr><th>Entity</th><th>Type</th><th>Mentions</th><th>Sentiment</th></tr></thead><tbody>
+    <tr><td>FreshSip</td><td>Brand</td><td>2,341</td><td><span class="art-sent pos">Positive</span></td></tr>
+    <tr><td>PepsiCo</td><td>Competitor</td><td>892</td><td><span class="art-sent neu">Neutral</span></td></tr>
+    <tr><td>Coca-Cola</td><td>Competitor</td><td>645</td><td><span class="art-sent neu">Neutral</span></td></tr>
+    <tr><td>Sarah Chen</td><td>Person</td><td>423</td><td><span class="art-sent pos">Positive</span></td></tr>
+    <tr><td>Dr Pepper</td><td>Competitor</td><td>312</td><td><span class="art-sent neg">Negative</span></td></tr>
+    <tr><td>FDA</td><td>Organization</td><td>187</td><td><span class="art-sent neu">Neutral</span></td></tr>
+    <tr><td>Nielsen</td><td>Organization</td><td>156</td><td><span class="art-sent pos">Positive</span></td></tr>
+    </tbody></table>
+  </div>
+  <div class="chart-card"><div class="chart-title">Theme Hierarchy<span>3-level classification</span></div><div class="chart-wrap"><canvas id="chThHier"></canvas></div></div>
+</div></div>
+<div id="DT3" class="dash-section" style="display:none"><div class="chart-grid">
+  <div class="chart-card"><div class="chart-title">Reach by Publisher<span>Top 10 by monthly visitors</span></div><div class="chart-wrap" style="height:220px"><canvas id="chReach"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Signals & Alerts</div>
+    <div class="sig-card"><div class="sig-type emerging">🟢 Emerging</div><div class="sig-desc">Growing organic beverage segment</div><div class="sig-reason">Third major brand launch in organic space this quarter.</div></div>
+    <div class="sig-card"><div class="sig-type emerging">🟢 Emerging</div><div class="sig-desc">FreshSip gaining in under-35 demographics</div><div class="sig-reason">Nielsen data shows accelerating share shift in key age bracket.</div></div>
+    <div class="sig-card" style="border-left-color:var(--orange)"><div class="sig-type anomaly">🟡 Anomaly</div><div class="sig-desc">Unusual spike in negative mentions on May 12</div><div class="sig-reason">Social media backlash from pricing announcement — resolved within 48 hours.</div></div>
+    <div class="sig-card" style="border-left-color:var(--red)"><div class="sig-type declining">🔴 Declining</div><div class="sig-desc">Competitor Dr Pepper coverage dropping</div><div class="sig-reason">Down 18% in media mentions vs prior period; losing share of voice.</div></div>
+  </div>
+</div></div>
+<div id="DT4" class="dash-section" style="display:none"><div class="chart-card" style="margin-bottom:12px"><div class="chart-title">Top Articles by Reach<span>Highest impact coverage</span></div>
+  <div class="art-row"><div class="art-rank">1</div><div class="art-info"><div class="art-title">FreshSip Launches New Organic Line</div><div class="art-src">Reuters · May 18 · 524M reach</div></div><span class="art-sent pos">Positive 92%</span></div>
+  <div class="art-row"><div class="art-rank">2</div><div class="art-info"><div class="art-title">PepsiCo vs FreshSip: Market Share Battle</div><div class="art-src">Forbes · May 16 · 189M reach</div></div><span class="art-sent neu">Neutral 87%</span></div>
+  <div class="art-row"><div class="art-rank">3</div><div class="art-info"><div class="art-title">Beverage Industry Q2 Outlook: Winners and Losers</div><div class="art-src">Bloomberg · May 15 · 312M reach</div></div><span class="art-sent pos">Positive 78%</span></div>
+  <div class="art-row"><div class="art-rank">4</div><div class="art-info"><div class="art-title">Consumer Shift to Healthy Beverages Accelerates</div><div class="art-src">WSJ · May 12 · 298M reach</div></div><span class="art-sent pos">Positive 85%</span></div>
+  <div class="art-row"><div class="art-rank">5</div><div class="art-info"><div class="art-title">FreshSip CEO Interview: Our Sustainability Vision</div><div class="art-src">CNBC · May 14 · 245M reach</div></div><span class="art-sent pos">Positive 91%</span></div>
+  <div class="art-row"><div class="art-rank">6</div><div class="art-info"><div class="art-title">Social Media Buzz: FreshSip Organic Goes Viral</div><div class="art-src">Instagram · May 19 · 2B reach</div></div><span class="art-sent pos">Positive 96%</span></div>
+</div></div>
+</div>`}
+
+function showDT(n,el){for(let i=0;i<5;i++){const s=document.getElementById('DT'+i);if(s)s.style.display=i===n?'block':'none'}document.querySelectorAll('.dash-tab').forEach(t=>t.classList.remove('a'));if(el)el.classList.add('a')}
+
+function initCharts(container){
+  const getCtx=id=>{const el=container.querySelector('#'+id);return el?el.getContext('2d'):null};
+  const cfg={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11,family:'DM Sans'},boxWidth:12,padding:8}}}};
+
+  // Sentiment donut
+  const c1=getCtx('chSent');if(c1)new Chart(c1,{type:'doughnut',data:{labels:['Positive','Neutral','Negative','Mixed'],datasets:[{data:[1947,498,234,168],backgroundColor:['#107C10','#FFB900','#D13438','#7B2F8A'],borderWidth:0}]},options:{...cfg,cutout:'65%'}});
+
+  // Trend line
+  const c2=getCtx('chTrend');if(c2)new Chart(c2,{type:'line',data:{labels:['May 1','3','5','7','9','11','13','15','17','19'],datasets:[{label:'Articles',data:[95,120,88,142,165,198,145,210,178,230],borderColor:'#0078D4',backgroundColor:'rgba(0,120,212,.1)',fill:true,tension:.4,pointRadius:3}]},options:{...cfg,scales:{y:{beginAtZero:true,grid:{color:'#F0F0F0'}},x:{grid:{display:false}}}}});
+
+  // Theme bars
+  const c3=getCtx('chTheme');if(c3)new Chart(c3,{type:'bar',data:{labels:['Product Launch','Competitive Analysis','Health & Wellness','Market Share','Social Engagement'],datasets:[{data:[842,623,589,412,381],backgroundColor:['#0078D4','#00B7C3','#107C10','#CA5010','#7B2F8A']}]},options:{...cfg,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'#F0F0F0'}},y:{grid:{display:false}}}}});
+
+  // Emotion radar
+  const c4=getCtx('chEmo');if(c4)new Chart(c4,{type:'radar',data:{labels:['Trust','Joy','Anticipation','Surprise','Fear','Anger','Sadness'],datasets:[{label:'Intensity',data:[0.85,0.72,0.62,0.34,0.18,0.12,0.08],borderColor:'#7B2F8A',backgroundColor:'rgba(123,47,138,.15)',pointBackgroundColor:'#7B2F8A'}]},options:{...cfg,scales:{r:{beginAtZero:true,max:1,ticks:{stepSize:0.25,font:{size:9}}}}}});
+
+  // Sentiment over time
+  const c5=getCtx('chSentTime');if(c5)new Chart(c5,{type:'line',data:{labels:['May 1','3','5','7','9','11','13','15','17','19'],datasets:[{label:'Positive',data:[65,68,62,70,72,58,74,76,71,78],borderColor:'#107C10',tension:.4,pointRadius:2},{label:'Negative',data:[12,10,15,8,7,22,9,6,8,5],borderColor:'#D13438',tension:.4,pointRadius:2},{label:'Neutral',data:[23,22,23,22,21,20,17,18,21,17],borderColor:'#FFB900',tension:.4,pointRadius:2}]},options:{...cfg,scales:{y:{beginAtZero:true,max:100,grid:{color:'#F0F0F0'}},x:{grid:{display:false}}}}});
+
+  // Sentiment by source
+  const c6=getCtx('chSentSrc');if(c6)new Chart(c6,{type:'bar',data:{labels:['Reuters','Forbes','Bloomberg','WSJ','CNBC'],datasets:[{label:'Positive',data:[82,45,68,72,88],backgroundColor:'#107C10'},{label:'Neutral',data:[12,38,22,18,8],backgroundColor:'#FFB900'},{label:'Negative',data:[6,17,10,10,4],backgroundColor:'#D13438'}]},options:{...cfg,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#F0F0F0'}}}}});
+
+  // Confidence histogram
+  const c7=getCtx('chConf');if(c7)new Chart(c7,{type:'bar',data:{labels:['50-60%','60-70%','70-80%','80-90%','90-100%'],datasets:[{data:[120,340,680,1024,683],backgroundColor:['#FFB900','#CA5010','#0078D4','#00B7C3','#107C10']}]},options:{...cfg,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#F0F0F0'}},x:{grid:{display:false}}}}});
+
+  // Theme hierarchy
+  const c8=getCtx('chThHier');if(c8)new Chart(c8,{type:'polarArea',data:{labels:['Product Launch','Competitive Analysis','Health & Wellness','Market Share','Social Engagement','CPG Innovation'],datasets:[{data:[842,623,589,412,381,298],backgroundColor:['rgba(0,120,212,.7)','rgba(0,183,195,.7)','rgba(16,124,16,.7)','rgba(202,80,16,.7)','rgba(123,47,138,.7)','rgba(209,52,56,.7)']}]},options:{...cfg,scales:{r:{ticks:{display:false}}}}});
+
+  // Reach bars
+  const c9=getCtx('chReach');if(c9)new Chart(c9,{type:'bar',data:{labels:['Instagram','Reuters','Bloomberg','WSJ','CNBC','Forbes','BBC','CNN','NYT','AP'],datasets:[{label:'Monthly Visitors (M)',data:[2000,524,312,298,245,189,178,165,142,128],backgroundColor:'rgba(0,183,195,.7)',borderColor:'#00B7C3',borderWidth:1}]},options:{...cfg,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#F0F0F0'},ticks:{callback:v=>v+'M'}},x:{grid:{display:false}}}}});
+}
+
+// Chip-up functions
+function exCU(){document.getElementById('CUC').style.display='none';const e=document.getElementById('CUE');e.classList.add('op');e.querySelector('.cu-ct').innerHTML=buildDash();setTimeout(()=>initCharts(e),100);CH.scrollTop=CH.scrollHeight}
+function clCU(){document.getElementById('CUE').classList.remove('op');document.getElementById('CUC').style.display='flex'}
+function opOv(){const b=document.getElementById('OB');b.innerHTML=buildDash();document.getElementById('OV').classList.add('op');setTimeout(()=>initCharts(b),100)}
+function clOv(){document.getElementById('OV').classList.remove('op')}
+function dlDash(){const b=new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>FreshSip PR Impact Dashboard</title><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script><style>body{font-family:'Segoe UI',sans-serif;background:#F5F5F5;padding:20px}</style></head><body><h1>FreshSip PR Impact Dashboard</h1><p>Generated by PR Solution Intelligence — Phase 4</p></body></html>`],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='FreshSip_PR_Dashboard.html';a.click()}
+
+// ═══ DEMO FLOW ═══
+async function run(){
+  aAI(`<strong>Phase 3 Complete</strong> — 2,847 articles enriched with sentiment, themes, emotion, entities, signals, and reach.<br><br>Starting <strong>Design Agent</strong> to generate your PR Impact Dashboard...`);
+  await w(800);
+
+  aW(`<div class="da-card" id="DA"><div class="da-h"><div class="da-sp" id="dSp"></div><div class="da-t" id="dT">Design Agent — Generating Dashboard</div><span class="da-badge">Windows 11 Theme</span></div><div class="da-bd"><div class="da-steps">
+    <div class="da-sr a" id="d1"><span class="da-si">⟳</span>Loading enriched data (2,847 articles)<span class="da-stm"></span></div>
+    <div class="da-sr p" id="d2"><span class="da-si">○</span>Selecting dashboard layout for PR Impact Agent<span class="da-stm"></span></div>
+    <div class="da-sr p" id="d3"><span class="da-si">○</span>Building KPI strip (6 metrics)<span class="da-stm"></span></div>
+    <div class="da-sr p" id="d4"><span class="da-si">○</span>Generating chart components (sentiment, themes, emotion, reach)<span class="da-stm"></span></div>
+    <div class="da-sr p" id="d5"><span class="da-si">○</span>Assembling responsive HTML with Windows 11 theme<span class="da-stm"></span></div>
+    <div class="da-sr p" id="d6"><span class="da-si">○</span>Validating cross-device rendering<span class="da-stm"></span></div>
+    <div class="da-sr p" id="d7"><span class="da-si">○</span>Creating shareable artifact<span class="da-stm"></span></div>
+  </div></div></div>`);
+
+  const times=['0.8s','0.3s','1.2s','3.4s','1.8s','0.6s','0.4s'];
+  for(let i=1;i<=7;i++){
+    await w(parseInt(parseFloat(times[i-1])*400));
+    const el=document.getElementById('d'+i);el.className='da-sr d';el.querySelector('.da-si').textContent='✓';el.querySelector('.da-stm').textContent=times[i-1];
+    if(i<7){const nx=document.getElementById('d'+(i+1));nx.className='da-sr a';nx.querySelector('.da-si').textContent='⟳'}
+    CH.scrollTop=CH.scrollHeight;
+  }
+  document.getElementById('dSp').style.display='none';
+  document.getElementById('dT').textContent='Design Agent — Complete ✓';
+  document.getElementById('dT').style.color='var(--green)';
+
+  await w(500);
+  aAI(`Your <strong>FreshSip PR Impact Dashboard</strong> is ready! Click below to preview, or open in a new window for the full experience.`);
+  await w(300);
+
+  aW(`<div class="cu"><div class="cu-c" id="CUC" onclick="exCU()">
+    <div class="cu-ico">📊</div>
+    <div class="cu-inf"><div class="cu-tl">FreshSip PR Impact Dashboard</div><div class="cu-mt">6 KPIs · 9 Charts · 5 Tabs · Sentiment · Themes · Entities · Reach · Signals · Top Articles</div></div>
+    <div class="cu-act">
+      <button class="cu-btn" onclick="event.stopPropagation();opOv()">⬗ New Window</button>
+      <button class="cu-btn pr" onclick="event.stopPropagation();exCU()">▶ Preview</button>
+      <button class="cu-btn" onclick="event.stopPropagation();dlDash()">⬇ Download</button>
+      <button class="cu-btn" onclick="event.stopPropagation();alert('Share link copied!')">🔗 Share</button>
+      <button class="cu-btn" onclick="event.stopPropagation();alert('Email sent!')">✉ Email</button>
+    </div>
+  </div>
+  <div class="cu-e" id="CUE"><div class="cu-tb"><div class="cu-tb-l"><span class="cu-tb-t">FreshSip PR Impact Dashboard</span></div><div style="display:flex;gap:4px"><button class="cu-btn" onclick="opOv()">⬗ New Window</button><button class="cu-btn" onclick="dlDash()">⬇ Download</button><button class="cu-btn" onclick="clCU()">▼ Collapse</button></div></div><div class="cu-ct" id="dashContent"></div></div></div>`);
+}
+run();
+</script>
+</body>
+</html>

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Solution Intelligence — Phase 2: Data Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   PR SOLUTION INTELLIGENCE — PHASE 2 FRONTEND
+   Data Pipeline: Upload + Conversational Flow + Boolean Query + Data Extract
+   ============================================================================ */
+:root {
+  --win-blue-50:#EBF3FE;--win-blue-100:#D5E8FC;--win-blue-200:#A8D0FA;
+  --win-blue-300:#6CB4F5;--win-blue-400:#3A96F0;--win-blue-500:#0078D4;
+  --win-blue-600:#005EA8;--win-blue-700:#004578;--win-blue-800:#003054;
+  --win-teal:#00B7C3;--win-green:#107C10;--win-red:#D13438;--win-orange:#CA5010;--win-purple:#7B2F8A;
+  --bg-base:#F5F5F5;--bg-card:#FFFFFF;--bg-sidebar:#F0F0F0;--bg-hover:#E8E8E8;--bg-active:#DFDFDF;
+  --bg-acrylic:rgba(255,255,255,0.72);
+  --text-primary:#1A1A1A;--text-secondary:#616161;--text-tertiary:#8E8E8E;--text-inverse:#FFFFFF;
+  --border-default:#E0E0E0;--border-focus:#0078D4;--border-subtle:#F0F0F0;
+  --shadow-2:0 1px 2px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.1);
+  --shadow-4:0 2px 4px rgba(0,0,0,0.04),0 4px 8px rgba(0,0,0,0.08);
+  --shadow-8:0 4px 8px rgba(0,0,0,0.04),0 8px 16px rgba(0,0,0,0.08);
+  --shadow-16:0 8px 16px rgba(0,0,0,0.06),0 16px 32px rgba(0,0,0,0.1);
+  --radius-sm:4px;--radius-md:8px;--radius-lg:12px;--radius-xl:16px;--radius-pill:9999px;
+  --ease-smooth:cubic-bezier(0.25,0.1,0.25,1.0);--ease-decel:cubic-bezier(0,0,0,1);
+  --dur-fast:150ms;--dur-normal:250ms;--dur-slow:400ms;
+  --font:' DM Sans','Segoe UI',system-ui,sans-serif;--font-mono:'Cascadia Code','Fira Code',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font);background:var(--bg-base);color:var(--text-primary);overflow:hidden;height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,textarea,select{font-family:inherit}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#C4C4C4;border-radius:3px}
+
+/* ── App Layout ── */
+.app{display:flex;height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{width:272px;min-width:272px;background:var(--bg-sidebar);border-right:1px solid var(--border-default);display:flex;flex-direction:column}
+.sb-header{padding:14px 14px 6px;display:flex;align-items:center;gap:10px}
+.sb-icon{width:30px;height:30px;background:var(--win-blue-500);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center}
+.sb-icon svg{width:16px;height:16px}
+.sb-name{font-size:.92rem;font-weight:700;letter-spacing:-.2px}
+.sb-new{margin:6px 10px;padding:9px 14px;background:var(--win-blue-500);color:#fff;border-radius:var(--radius-md);font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:8px;transition:background var(--dur-fast)}
+.sb-new:hover{background:#1A86D8}
+.sb-nav{padding:6px 10px}
+.sb-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-tertiary);padding:8px 8px 3px;margin-top:6px}
+.sb-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius-md);font-size:.85rem;color:var(--text-secondary);transition:all var(--dur-fast);cursor:pointer;width:100%;text-align:left}
+.sb-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.sb-item.active{background:var(--win-blue-50);color:var(--win-blue-500);font-weight:600}
+.sb-item svg{width:16px;height:16px;flex-shrink:0}
+.sb-chats{flex:1;overflow-y:auto;padding:3px 10px}
+.sb-chat{padding:9px 10px;border-radius:var(--radius-md);font-size:.82rem;color:var(--text-secondary);cursor:pointer;transition:background var(--dur-fast);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-chat:hover{background:var(--bg-hover)}
+.sb-chat.active{background:var(--win-blue-50);color:var(--win-blue-600);font-weight:500}
+.sb-user{padding:10px 14px;border-top:1px solid var(--border-default);display:flex;align-items:center;gap:9px}
+.sb-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--win-blue-500),var(--win-teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.78rem;font-weight:700}
+.sb-uname{font-size:.82rem;font-weight:600}.sb-urole{font-size:.7rem;color:var(--text-tertiary)}
+
+/* ── Main Area ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:48px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border-bottom:1px solid var(--border-subtle)}
+.topbar-title{font-size:.95rem;font-weight:600}
+.topbar-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:var(--radius-pill);font-size:.72rem;font-weight:600;background:var(--win-blue-50);color:var(--win-blue-600);margin-left:10px}
+.topbar-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--win-green)}
+
+/* ── Chat Area ── */
+.chat-area{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+
+/* Messages */
+.msg{display:flex;gap:10px;max-width:780px;animation:msgIn .3s var(--ease-decel)}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg-avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700}
+.msg.ai .msg-avatar{background:linear-gradient(135deg,var(--win-blue-500),var(--win-teal));color:#fff}
+.msg.user .msg-avatar{background:var(--bg-hover);color:var(--text-secondary)}
+.msg-bubble{padding:11px 15px;border-radius:var(--radius-lg);font-size:.9rem;line-height:1.55;max-width:620px}
+.msg.ai .msg-bubble{background:var(--bg-card);border:1px solid var(--border-default)}
+.msg.user .msg-bubble{background:var(--win-blue-500);color:#fff}
+.msg-bubble strong{font-weight:600}
+
+/* Chips / Options */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.chip{padding:7px 15px;border-radius:var(--radius-pill);border:1.5px solid var(--win-blue-200);background:var(--win-blue-50);color:var(--win-blue-600);font-size:.8rem;font-weight:500;transition:all var(--dur-fast);cursor:pointer}
+.chip:hover{background:var(--win-blue-500);color:#fff;border-color:var(--win-blue-500)}
+.chip.selected{background:var(--win-blue-500);color:#fff;border-color:var(--win-blue-500)}
+.chip.disabled{opacity:.4;pointer-events:none}
+
+/* ── Upload Zone ── */
+.upload-zone{border:2px dashed var(--border-default);border-radius:var(--radius-lg);padding:32px 24px;text-align:center;transition:all var(--dur-normal);cursor:pointer;background:var(--bg-card);margin-top:4px;position:relative}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--win-blue-400);background:var(--win-blue-50)}
+.upload-zone.dragover{transform:scale(1.01)}
+.upload-icon{width:48px;height:48px;margin:0 auto 12px;background:var(--win-blue-50);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.upload-icon svg{width:24px;height:24px;color:var(--win-blue-500)}
+.upload-title{font-size:.95rem;font-weight:600;margin-bottom:4px}
+.upload-hint{font-size:.8rem;color:var(--text-tertiary)}
+.upload-hint span{color:var(--win-blue-500);font-weight:500;cursor:pointer}
+.upload-formats{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.upload-fmt{padding:2px 10px;border-radius:var(--radius-pill);font-size:.7rem;font-weight:600;background:#F0F0F0;color:var(--text-secondary)}
+
+/* ── Upload Progress Card ── */
+.upload-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:16px 18px;margin-top:8px;animation:msgIn .3s var(--ease-decel)}
+.upload-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.upload-card-name{display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:600}
+.upload-card-name svg{width:18px;height:18px;color:var(--win-blue-500)}
+.upload-card-size{font-size:.75rem;color:var(--text-tertiary)}
+.upload-progress-bar{height:4px;background:#EEE;border-radius:2px;overflow:hidden;margin-bottom:10px}
+.upload-progress-fill{height:100%;background:linear-gradient(90deg,var(--win-blue-500),var(--win-teal));border-radius:2px;transition:width .5s var(--ease-smooth)}
+.upload-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.upload-meta-item{background:var(--bg-base);border-radius:var(--radius-md);padding:8px 12px}
+.upload-meta-label{font-size:.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.upload-meta-value{font-size:.88rem;font-weight:600;color:var(--text-primary)}
+.upload-meta-value.success{color:var(--win-green)}
+
+/* ── Boolean Query Box ── */
+.bool-query-box{background:#1E1E2E;border-radius:var(--radius-lg);padding:16px 18px;margin-top:8px;position:relative;animation:msgIn .3s var(--ease-decel)}
+.bool-query-label{display:flex;align-items:center;gap:6px;font-size:.75rem;font-weight:600;color:#9CA3AF;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.bool-query-label svg{width:14px;height:14px}
+.bool-query-code{font-family:var(--font-mono);font-size:.84rem;color:#E2E8F0;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.bool-query-code .kw{color:#F472B6;font-weight:600}
+.bool-query-code .str{color:#34D399}
+.bool-query-code .field{color:#60A5FA}
+.bool-query-code .paren{color:#FBBF24}
+.bool-query-actions{display:flex;gap:6px;margin-top:10px}
+.bool-query-btn{padding:5px 12px;border-radius:var(--radius-sm);font-size:.75rem;font-weight:500;transition:all var(--dur-fast)}
+.bool-query-btn.edit{background:rgba(255,255,255,.08);color:#9CA3AF}
+.bool-query-btn.edit:hover{background:rgba(255,255,255,.15);color:#fff}
+.bool-query-btn.copy{background:rgba(255,255,255,.08);color:#9CA3AF}
+.bool-query-btn.copy:hover{background:rgba(255,255,255,.15);color:#fff}
+.bool-query-btn.confirm{background:var(--win-blue-500);color:#fff}
+.bool-query-btn.confirm:hover{background:#1A86D8}
+
+/* ── Processing Status ── */
+.process-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:16px 18px;margin-top:8px;animation:msgIn .3s var(--ease-decel)}
+.process-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.process-spinner{width:20px;height:20px;border:2.5px solid var(--border-default);border-top-color:var(--win-blue-500);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.process-title{font-size:.9rem;font-weight:600}
+.process-steps{display:flex;flex-direction:column;gap:6px}
+.process-step{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text-secondary);padding:4px 0}
+.process-step .step-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.65rem}
+.process-step.done .step-icon{background:#E8F5E9;color:var(--win-green)}
+.process-step.active .step-icon{background:var(--win-blue-50);color:var(--win-blue-500)}
+.process-step.pending .step-icon{background:#F5F5F5;color:var(--text-tertiary)}
+.process-step.done{color:var(--text-primary)}
+.process-step.active{color:var(--win-blue-600);font-weight:500}
+.process-step .step-time{margin-left:auto;font-size:.72rem;color:var(--text-tertiary);font-family:var(--font-mono)}
+
+/* ── Completion Summary (Collapsible) ── */
+.completion-card{background:linear-gradient(135deg,#E8F5E9,#F0F6FA);border:1px solid #C8E6C9;border-radius:var(--radius-lg);padding:14px 18px;margin-top:8px;animation:msgIn .3s var(--ease-decel)}
+.completion-header{display:flex;align-items:center;gap:8px;cursor:pointer}
+.completion-icon{width:24px;height:24px;background:var(--win-green);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem;font-weight:700}
+.completion-title{font-size:.9rem;font-weight:600;color:var(--win-green);flex:1}
+.completion-toggle{font-size:.75rem;color:var(--text-tertiary);text-decoration:underline;cursor:pointer}
+.completion-body{display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.06)}
+.completion-body.open{display:block}
+.completion-stats{display:flex;gap:16px;flex-wrap:wrap}
+.completion-stat{text-align:center}
+.completion-stat-val{font-size:1.1rem;font-weight:700;color:var(--text-primary)}
+.completion-stat-label{font-size:.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.3px}
+
+/* ── Data Preview Table ── */
+.data-preview{overflow-x:auto;margin-top:8px;border:1px solid var(--border-default);border-radius:var(--radius-lg);animation:msgIn .3s var(--ease-decel)}
+.data-preview table{width:100%;border-collapse:collapse;font-size:.78rem}
+.data-preview th{background:var(--win-blue-500);color:#fff;padding:8px 12px;text-align:left;font-weight:600;white-space:nowrap;position:sticky;top:0}
+.data-preview td{padding:7px 12px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.data-preview tr:nth-child(even){background:var(--bg-base)}
+.data-preview tr:hover{background:var(--win-blue-50)}
+.data-preview-footer{padding:8px 12px;background:var(--bg-base);border-top:1px solid var(--border-default);font-size:.75rem;color:var(--text-tertiary);display:flex;justify-content:space-between}
+
+/* ── Chat Input ── */
+.chat-input-area{padding:14px 20px;background:var(--bg-card);border-top:1px solid var(--border-subtle)}
+.chat-input-wrap{max-width:780px;margin:0 auto;display:flex;align-items:center;gap:7px}
+.chat-upload-btn{width:36px;height:36px;border-radius:var(--radius-md);background:var(--bg-hover);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;transition:all var(--dur-fast);position:relative}
+.chat-upload-btn:hover{background:var(--win-blue-50);color:var(--win-blue-500)}
+.chat-upload-btn svg{width:16px;height:16px}
+.chat-input{flex:1;padding:9px 14px;border:1.5px solid var(--border-default);border-radius:var(--radius-lg);font-size:.9rem;background:var(--bg-base);color:var(--text-primary);outline:none;transition:border var(--dur-fast)}
+.chat-input:focus{border-color:var(--win-blue-500);box-shadow:0 0 0 2px rgba(0,120,212,.12)}
+.chat-send{width:36px;height:36px;border-radius:var(--radius-md);background:var(--win-blue-500);color:#fff;display:flex;align-items:center;justify-content:center;transition:background var(--dur-fast)}
+.chat-send:hover{background:#1A86D8}
+.chat-send svg{width:16px;height:16px}
+
+/* ── Custom Date Input ── */
+.date-input-row{display:flex;gap:8px;margin-top:8px;align-items:center}
+.date-input{padding:7px 12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);font-size:.82rem;background:var(--bg-card);color:var(--text-primary);outline:none;font-family:var(--font)}
+.date-input:focus{border-color:var(--win-blue-500)}
+.date-apply{padding:7px 16px;border-radius:var(--radius-md);background:var(--win-blue-500);color:#fff;font-size:.82rem;font-weight:500;transition:background var(--dur-fast)}
+.date-apply:hover{background:#1A86D8}
+
+/* ── Competitor Tags ── */
+.competitor-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.comp-tag{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:var(--radius-pill);background:var(--win-blue-50);border:1px solid var(--win-blue-200);font-size:.78rem;color:var(--win-blue-700);font-weight:500}
+.comp-tag .remove{cursor:pointer;opacity:.5;font-size:.9rem}
+.comp-tag .remove:hover{opacity:1;color:var(--win-red)}
+
+/* ── Reach Input ── */
+.reach-input-row{display:flex;gap:8px;align-items:center;margin-top:6px}
+.reach-input{padding:7px 12px;border:1.5px solid var(--border-default);border-radius:var(--radius-md);font-size:.82rem;background:var(--bg-card);color:var(--text-primary);width:200px;outline:none}
+.reach-label{font-size:.78rem;color:var(--text-tertiary)}
+
+/* Flow Step Indicator */
+.flow-indicator{display:flex;gap:3px;margin-top:10px}
+.flow-dot{width:6px;height:6px;border-radius:50%;background:var(--border-default);transition:all var(--dur-fast)}
+.flow-dot.done{background:var(--win-green)}
+.flow-dot.active{background:var(--win-blue-500);transform:scale(1.3)}
+
+@media(max-width:768px){
+  .sidebar{position:fixed;left:-272px;z-index:100;height:100vh}
+  .upload-meta{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <div class="sb-header">
+      <div class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <span class="sb-name">PR Solution AI</span>
+    </div>
+    <button class="sb-new" onclick="resetDemo()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Chat
+    </button>
+    <nav class="sb-nav">
+      <div class="sb-label">Navigation</div>
+      <button class="sb-item" onclick="resetDemo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>Home</button>
+      <button class="sb-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"/></svg>Chat</button>
+      <button class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.2.65.77 1.09 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Settings</button>
+      <div class="sb-label">Recent Chats</div>
+    </nav>
+    <div class="sb-chats">
+      <div class="sb-chat active">FreshSip Brand Analysis</div>
+      <div class="sb-chat">PepsiCo Crisis Coverage</div>
+      <div class="sb-chat">Dr Pepper Competitor Report</div>
+    </div>
+    <div class="sb-user">
+      <div class="sb-avatar">KB</div>
+      <div><div class="sb-uname">KhadarBasha S.</div><div class="sb-urole">Senior Agentic AI Dev</div></div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center">
+        <span class="topbar-title">PR Impact Agent</span>
+        <span class="topbar-badge">Phase 2: Data Pipeline</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="flowDots" class="flow-indicator">
+          <div class="flow-dot" id="fd1"></div><div class="flow-dot" id="fd2"></div>
+          <div class="flow-dot" id="fd3"></div><div class="flow-dot" id="fd4"></div>
+          <div class="flow-dot" id="fd5"></div><div class="flow-dot" id="fd6"></div>
+          <div class="flow-dot" id="fd7"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-area" id="chatArea">
+      <!-- Messages are injected by JS simulation -->
+    </div>
+
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <button class="chat-upload-btn" onclick="triggerUpload()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <input class="chat-input" id="chatInput" placeholder="Type your message..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}">
+        <button class="chat-send" onclick="sendMsg()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+        <input type="file" id="fileInput" accept=".csv,.json" style="display:none" onchange="handleFile(event)">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   PHASE 2 DEMO — Simulates the full Data Pipeline conversational flow
+   ============================================================================ */
+const chatArea = document.getElementById('chatArea');
+let step = 0;
+const FLOW_STEPS = ['init','upload','dates','enrichment','brand','competitors','intention','query','process','complete'];
+
+function setFlowDot(idx) {
+  for(let i=1;i<=7;i++){
+    const d=document.getElementById('fd'+i);
+    if(i<idx) d.className='flow-dot done';
+    else if(i===idx) d.className='flow-dot active';
+    else d.className='flow-dot';
+  }
+}
+
+function addAI(html,extra='') {
+  const d=document.createElement('div');d.className='msg ai';
+  d.innerHTML=`<div class="msg-avatar">AI</div><div style="flex:1;max-width:640px"><div class="msg-bubble">${html}</div>${extra}</div>`;
+  chatArea.appendChild(d);chatArea.scrollTop=chatArea.scrollHeight;
+}
+function addUser(text) {
+  const d=document.createElement('div');d.className='msg user';
+  d.innerHTML=`<div class="msg-avatar">KB</div><div><div class="msg-bubble">${text}</div></div>`;
+  chatArea.appendChild(d);chatArea.scrollTop=chatArea.scrollHeight;
+}
+function addWidget(html) {
+  const d=document.createElement('div');d.className='msg ai';
+  d.innerHTML=`<div class="msg-avatar">AI</div><div style="flex:1;max-width:680px">${html}</div>`;
+  chatArea.appendChild(d);chatArea.scrollTop=chatArea.scrollHeight;
+}
+
+function triggerUpload() { document.getElementById('fileInput').click(); }
+
+/* ── Step 0: Welcome ── */
+function startFlow() {
+  step=0; setFlowDot(1);
+  addAI(`Welcome! I'm the <strong>PR Impact Agent</strong>. I can analyze brand coverage, sentiment, and PR effectiveness.<br><br>Upload a CSV or JSON file to get started, or describe your analysis.`,
+    `<div class="upload-zone" id="dropZone" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault();this.classList.remove('dragover');handleDrop(event)" onclick="triggerUpload()">
+      <div class="upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+      <div class="upload-title">Drop your data file here</div>
+      <div class="upload-hint">or <span>browse files</span> from your computer</div>
+      <div class="upload-formats"><span class="upload-fmt">CSV</span><span class="upload-fmt">JSON</span></div>
+    </div>`);
+}
+
+/* ── Handle File Upload ── */
+function handleDrop(e) { const f=e.dataTransfer.files[0]; if(f) processFile(f); }
+function handleFile(e) { const f=e.target.files[0]; if(f) processFile(f); }
+
+function processFile(file) {
+  step=1; setFlowDot(2);
+  addUser(`📎 Uploaded: ${file.name}`);
+
+  // Simulated upload progress card
+  addWidget(`<div class="upload-card">
+    <div class="upload-card-header">
+      <div class="upload-card-name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${file.name}</div>
+      <span class="upload-card-size">${(file.size/1024).toFixed(1)} KB</span>
+    </div>
+    <div class="upload-progress-bar"><div class="upload-progress-fill" id="uploadBar" style="width:0%"></div></div>
+    <div id="uploadMeta" style="display:none" class="upload-meta">
+      <div class="upload-meta-item"><div class="upload-meta-label">Rows Detected</div><div class="upload-meta-value">2,847</div></div>
+      <div class="upload-meta-item"><div class="upload-meta-label">Columns</div><div class="upload-meta-value">12</div></div>
+      <div class="upload-meta-item"><div class="upload-meta-label">Date Range</div><div class="upload-meta-value">May 1 – May 20, 2026</div></div>
+      <div class="upload-meta-item"><div class="upload-meta-label">Status</div><div class="upload-meta-value success">✓ Schema Detected</div></div>
+    </div>
+  </div>`);
+
+  // Animate progress bar
+  let prog=0;
+  const iv=setInterval(()=>{
+    prog+=Math.random()*18+8;
+    if(prog>100) prog=100;
+    document.getElementById('uploadBar').style.width=prog+'%';
+    if(prog>=100){
+      clearInterval(iv);
+      document.getElementById('uploadMeta').style.display='grid';
+      setTimeout(()=>showDataPreview(),500);
+    }
+  },300);
+}
+
+function showDataPreview() {
+  addWidget(`<div class="data-preview" style="max-height:200px;overflow:auto">
+    <table>
+      <thead><tr><th>Title</th><th>Source</th><th>Published</th><th>Author</th><th>Sentiment</th></tr></thead>
+      <tbody>
+        <tr><td>FreshSip Launches New Organic Line</td><td>Reuters</td><td>2026-05-18</td><td>J. Martinez</td><td>—</td></tr>
+        <tr><td>Beverage Market Q2 Trends Report</td><td>Bloomberg</td><td>2026-05-16</td><td>S. Chen</td><td>—</td></tr>
+        <tr><td>FreshSip CEO Interview: Sustainability</td><td>CNBC</td><td>2026-05-14</td><td>A. Patel</td><td>—</td></tr>
+        <tr><td>Consumer Shift to Healthy Beverages</td><td>WSJ</td><td>2026-05-12</td><td>R. Kim</td><td>—</td></tr>
+        <tr><td>PepsiCo vs FreshSip Market Analysis</td><td>Forbes</td><td>2026-05-10</td><td>M. Jones</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="data-preview-footer"><span>Showing 5 of 2,847 articles</span><span>Auto-detected date range: May 1 – May 20, 2026</span></div>
+  </div>`);
+
+  setTimeout(()=>{
+    addAI(`I've detected <strong>2,847 articles</strong> with a date range of <strong>May 1–20, 2026</strong>.<br><br>Since your file includes dates, I'll use those automatically. Now, select your <strong>enrichment type</strong>:`,
+      `<div class="chips" id="enrichChips">
+        <button class="chip" onclick="selectEnrichment('standard')">Enrichment</button>
+        <button class="chip" onclick="selectEnrichment('reach')">Enrichment + Reach</button>
+      </div>`);
+    step=3; setFlowDot(3);
+  },600);
+}
+
+/* ── Step: Enrichment Selection ── */
+function selectEnrichment(type) {
+  document.querySelectorAll('#enrichChips .chip').forEach(c=>c.classList.add('disabled'));
+  event.target.classList.add('selected');
+  const label = type==='reach' ? 'Enrichment + Reach' : 'Enrichment';
+  addUser(label);
+
+  if(type==='reach') {
+    setTimeout(()=>{
+      addAI(`You selected <strong>Enrichment + Reach</strong>. I'll use Similar Web to fetch publisher domain reach alongside standard enrichment.<br><br>Enter the <strong>minimum monthly visitors threshold</strong> (optional):`,
+        `<div class="reach-input-row">
+          <input class="reach-input" id="reachInput" placeholder="e.g., 50000" value="50000">
+          <span class="reach-label">monthly visitors minimum</span>
+          <button class="date-apply" onclick="confirmReach()">Confirm</button>
+        </div>`);
+    },400);
+  } else {
+    setTimeout(()=>askBrand(),400);
+  }
+}
+
+function confirmReach() {
+  const v=document.getElementById('reachInput').value;
+  addUser(`Reach threshold: ${v?Number(v).toLocaleString():'No minimum'} monthly visitors`);
+  setTimeout(()=>askBrand(),400);
+}
+
+/* ── Step: Brand ── */
+function askBrand() {
+  step=4; setFlowDot(4);
+  addAI(`What <strong>brand</strong> would you like to analyze?`,
+    `<div class="chips">
+      <button class="chip" onclick="selectBrand('FreshSip')">FreshSip</button>
+      <button class="chip" onclick="selectBrand('custom')">Other brand...</button>
+    </div>`);
+}
+
+function selectBrand(brand) {
+  if(brand==='custom'){
+    addAI('Enter your brand name:');
+    return;
+  }
+  addUser(brand);
+  setTimeout(()=>askCompetitors(brand),400);
+}
+
+/* ── Step: Competitors ── */
+function askCompetitors(brand) {
+  step=5; setFlowDot(5);
+  addAI(`Based on <strong>${brand}</strong> in the CPG/Beverage industry, here are suggested competitor sets:`,
+    `<div class="chips" id="compChips">
+      <button class="chip" onclick="selectCompetitors('top5')">Top 5</button>
+      <button class="chip" onclick="selectCompetitors('top3')">Top 3</button>
+      <button class="chip" onclick="selectCompetitors('top2')">Top 2</button>
+      <button class="chip" onclick="selectCompetitors('other')">Other</button>
+    </div>`);
+}
+
+function selectCompetitors(set) {
+  document.querySelectorAll('#compChips .chip').forEach(c=>c.classList.add('disabled'));
+  const comps = {
+    top5: ['PepsiCo','Coca-Cola','Dr Pepper','Nestlé Waters','Tropicana'],
+    top3: ['PepsiCo','Coca-Cola','Dr Pepper'],
+    top2: ['PepsiCo','Coca-Cola'],
+    other: ['Custom competitor']
+  };
+  const list = comps[set];
+  addUser(`Competitors: ${list.join(', ')}`);
+
+  setTimeout(()=>{
+    addWidget(`<div class="msg-bubble" style="background:var(--bg-card);border:1px solid var(--border-default)">
+      <strong>Selected Competitors:</strong>
+      <div class="competitor-tags">${list.map(c=>`<span class="comp-tag">${c} <span class="remove" onclick="this.parentElement.remove()">×</span></span>`).join('')}</div>
+    </div>`);
+    setTimeout(()=>askIntention(),400);
+  },300);
+}
+
+/* ── Step: Intention ── */
+function askIntention() {
+  step=6; setFlowDot(6);
+  addAI(`What is the <strong>analysis intention</strong>?`,
+    `<div class="chips" id="intentChips">
+      <button class="chip" onclick="selectIntention('Intention-based')">Intention-based</button>
+      <button class="chip" onclick="selectIntention('Comment-based')">Comment-based</button>
+    </div>`);
+}
+
+function selectIntention(intent) {
+  document.querySelectorAll('#intentChips .chip').forEach(c=>c.classList.add('disabled'));
+  event.target.classList.add('selected');
+  addUser(intent);
+  setTimeout(()=>generateBooleanQuery(),500);
+}
+
+/* ── Step: Boolean Query Generation ── */
+function generateBooleanQuery() {
+  step=7; setFlowDot(7);
+  addAI(`I've generated a <strong>Boolean query</strong> based on all your parameters:`);
+
+  setTimeout(()=>{
+    addWidget(`<div class="bool-query-box">
+      <div class="bool-query-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>BOOLEAN QUERY</div>
+      <div class="bool-query-code"><span class="paren">(</span>
+  <span class="field">title:</span><span class="str">"FreshSip"</span> <span class="kw">OR</span> <span class="field">headline:</span><span class="str">"FreshSip"</span>
+  <span class="kw">OR</span> <span class="field">content:</span><span class="str">"FreshSip"</span>
+<span class="paren">)</span>
+<span class="kw">AND</span> <span class="paren">(</span>
+  <span class="field">content:</span><span class="str">"PepsiCo"</span> <span class="kw">OR</span> <span class="field">content:</span><span class="str">"Coca-Cola"</span>
+  <span class="kw">OR</span> <span class="field">content:</span><span class="str">"Dr Pepper"</span>
+<span class="paren">)</span>
+<span class="kw">AND</span> <span class="field">date:</span>[<span class="str">2026-05-01</span> <span class="kw">TO</span> <span class="str">2026-05-20</span>]
+<span class="kw">AND</span> <span class="field">language:</span><span class="str">"en"</span></div>
+      <div class="bool-query-actions">
+        <button class="bool-query-btn edit" onclick="alert('Edit query modal')">✏️ Edit</button>
+        <button class="bool-query-btn copy" onclick="navigator.clipboard.writeText(this.closest('.bool-query-box').querySelector('.bool-query-code').textContent);this.textContent='✓ Copied'">📋 Copy</button>
+        <button class="bool-query-btn confirm" onclick="confirmQuery()">✓ Confirm & Process</button>
+      </div>
+    </div>`);
+  },300);
+}
+
+/* ── Step: Processing ── */
+function confirmQuery() {
+  addUser('✓ Query confirmed — start processing');
+  setTimeout(()=>showProcessing(),400);
+}
+
+function showProcessing() {
+  addWidget(`<div class="process-card" id="processCard">
+    <div class="process-header">
+      <div class="process-spinner"></div>
+      <div class="process-title">Data Extract Agent — Processing</div>
+    </div>
+    <div class="process-steps" id="processSteps">
+      <div class="process-step active" id="ps1"><span class="step-icon">⟳</span> Validating uploaded CSV schema <span class="step-time"></span></div>
+      <div class="process-step pending" id="ps2"><span class="step-icon">○</span> Parsing 2,847 articles <span class="step-time"></span></div>
+      <div class="process-step pending" id="ps3"><span class="step-icon">○</span> Auto-detecting date range <span class="step-time"></span></div>
+      <div class="process-step pending" id="ps4"><span class="step-icon">○</span> Extracting publisher domains for reach <span class="step-time"></span></div>
+      <div class="process-step pending" id="ps5"><span class="step-icon">○</span> Normalizing article schema <span class="step-time"></span></div>
+      <div class="process-step pending" id="ps6"><span class="step-icon">○</span> Inserting into articles database <span class="step-time"></span></div>
+      <div class="process-step pending" id="ps7"><span class="step-icon">○</span> Handoff to Enrichment Agent <span class="step-time"></span></div>
+    </div>
+  </div>`);
+
+  const times=['0.4s','1.2s','0.2s','0.8s','1.5s','2.1s','0.3s'];
+  let idx=1;
+  const iv=setInterval(()=>{
+    const prev=document.getElementById('ps'+idx);
+    prev.className='process-step done';
+    prev.querySelector('.step-icon').textContent='✓';
+    prev.querySelector('.step-time').textContent=times[idx-1];
+    idx++;
+    if(idx<=7){
+      const cur=document.getElementById('ps'+idx);
+      cur.className='process-step active';
+      cur.querySelector('.step-icon').textContent='⟳';
+    }
+    if(idx>7){
+      clearInterval(iv);
+      document.querySelector('#processCard .process-spinner').style.display='none';
+      document.querySelector('#processCard .process-title').textContent='Data Extract Agent — Complete ✓';
+      document.querySelector('#processCard .process-title').style.color='var(--win-green)';
+      setTimeout(()=>showCompletion(),500);
+    }
+    chatArea.scrollTop=chatArea.scrollHeight;
+  },700);
+}
+
+/* ── Completion ── */
+function showCompletion() {
+  addWidget(`<div class="completion-card">
+    <div class="completion-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.completion-toggle').textContent=this.nextElementSibling.classList.contains('open')?'Collapse':'Expand'">
+      <div class="completion-icon">✓</div>
+      <div class="completion-title">Data Pipeline Complete — Ready for Enrichment</div>
+      <span class="completion-toggle">Expand</span>
+    </div>
+    <div class="completion-body">
+      <div class="completion-stats">
+        <div class="completion-stat"><div class="completion-stat-val">2,847</div><div class="completion-stat-label">Articles Parsed</div></div>
+        <div class="completion-stat"><div class="completion-stat-val">12</div><div class="completion-stat-label">Columns Mapped</div></div>
+        <div class="completion-stat"><div class="completion-stat-val">234</div><div class="completion-stat-label">Publisher Domains</div></div>
+        <div class="completion-stat"><div class="completion-stat-val">6.5s</div><div class="completion-stat-label">Total Time</div></div>
+        <div class="completion-stat"><div class="completion-stat-val">May 1–20</div><div class="completion-stat-label">Date Range</div></div>
+        <div class="completion-stat"><div class="completion-stat-val">3</div><div class="completion-stat-label">Competitors</div></div>
+      </div>
+    </div>
+  </div>`);
+
+  setTimeout(()=>{
+    addAI(`Data pipeline complete! <strong>2,847 articles</strong> are parsed and ready.<br><br>In <strong>Phase 3</strong>, the Enrichment Agent will process these articles with sentiment, themes, emotion, entity, signal, and reach tagging.<br><br><em>Phase 2 delivery complete — all data is stored and the enrichment handoff is ready.</em>`);
+  },400);
+}
+
+/* ── Manual send ── */
+function sendMsg() {
+  const el=document.getElementById('chatInput');
+  if(!el.value.trim()) return;
+  addUser(el.value.trim());
+  el.value='';
+  // Simple intent detection for demo
+  if(step===0){
+    setTimeout(()=>{
+      addAI(`I'll help with that. First, let me collect some details.<br><br>Select your <strong>date range</strong>:`,
+        `<div class="chips" id="dateChips">
+          <button class="chip" onclick="selectDate('Weekly')">Weekly</button>
+          <button class="chip" onclick="selectDate('10 Days')">10 Days</button>
+          <button class="chip" onclick="selectDate('20 Days')">20 Days</button>
+          <button class="chip" onclick="selectDate('Custom')">Custom</button>
+        </div>`);
+      step=2; setFlowDot(2);
+    },500);
+  }
+}
+
+function selectDate(range) {
+  document.querySelectorAll('#dateChips .chip').forEach(c=>c.classList.add('disabled'));
+  event.target.classList.add('selected');
+  if(range==='Custom'){
+    addAI('Enter your custom date range:',
+      `<div class="date-input-row">
+        <input type="date" class="date-input" id="dateFrom" value="2026-05-01">
+        <span style="color:var(--text-tertiary)">to</span>
+        <input type="date" class="date-input" id="dateTo" value="2026-05-20">
+        <button class="date-apply" onclick="applyCustomDate()">Apply</button>
+      </div>`);
+  } else {
+    addUser(`Date range: ${range}`);
+    setTimeout(()=>{
+      addAI(`Great, <strong>${range}</strong> selected. Now choose your <strong>enrichment type</strong>:`,
+        `<div class="chips" id="enrichChips">
+          <button class="chip" onclick="selectEnrichment('standard')">Enrichment</button>
+          <button class="chip" onclick="selectEnrichment('reach')">Enrichment + Reach</button>
+        </div>`);
+      step=3; setFlowDot(3);
+    },400);
+  }
+}
+
+function applyCustomDate(){
+  const from=document.getElementById('dateFrom').value;
+  const to=document.getElementById('dateTo').value;
+  addUser(`Custom date range: ${from} to ${to}`);
+  setTimeout(()=>{
+    addAI(`Date range set: <strong>${from}</strong> to <strong>${to}</strong>. Now choose <strong>enrichment type</strong>:`,
+      `<div class="chips" id="enrichChips">
+        <button class="chip" onclick="selectEnrichment('standard')">Enrichment</button>
+        <button class="chip" onclick="selectEnrichment('reach')">Enrichment + Reach</button>
+      </div>`);
+    step=3; setFlowDot(3);
+  },400);
+}
+
+function resetDemo() {
+  chatArea.innerHTML='';
+  step=0;
+  setFlowDot(0);
+  startFlow();
+}
+
+// ── Init ──
+startFlow();
+</script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Solution Intelligence — Phase 3: Enrichment Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--b50:#EBF3FE;--b100:#D5E8FC;--b200:#A8D0FA;--b500:#0078D4;--b600:#005EA8;--b700:#004578;--teal:#00B7C3;--green:#107C10;--red:#D13438;--orange:#CA5010;--purple:#7B2F8A;--bg:#F5F5F5;--card:#FFF;--sidebar:#F0F0F0;--hover:#E8E8E8;--tp:#1A1A1A;--ts:#616161;--tt:#8E8E8E;--bd:#E0E0E0;--bs:#F0F0F0;--s4:0 2px 4px rgba(0,0,0,.04),0 4px 8px rgba(0,0,0,.08);--s8:0 4px 8px rgba(0,0,0,.04),0 8px 16px rgba(0,0,0,.08);--s64:0 16px 32px rgba(0,0,0,.08),0 32px 64px rgba(0,0,0,.12);--rm:8px;--rl:12px;--rp:9999px;--ease:cubic-bezier(.25,.1,.25,1);--f:'DM Sans','Segoe UI',system-ui,sans-serif;--m:'Cascadia Code','Fira Code',monospace}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html{font-size:14px;-webkit-font-smoothing:antialiased}body{font-family:var(--f);background:var(--bg);color:var(--tp);overflow:hidden;height:100vh}button{font-family:inherit;cursor:pointer;border:none;background:none}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#C4C4C4;border-radius:3px}
+.app{display:flex;height:100vh}
+/* Sidebar */
+.sb{width:260px;min-width:260px;background:var(--sidebar);border-right:1px solid var(--bd);display:flex;flex-direction:column}
+.sb-h{padding:14px 14px 6px;display:flex;align-items:center;gap:10px}.sb-i{width:30px;height:30px;background:var(--b500);border-radius:4px;display:flex;align-items:center;justify-content:center}.sb-i svg{width:16px;height:16px}.sb-n{font-size:.92rem;font-weight:700}
+.sb-new{margin:6px 10px;padding:9px 14px;background:var(--b500);color:#fff;border-radius:var(--rm);font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:8px;transition:background .15s}.sb-new:hover{background:#1A86D8}
+.sb-lbl{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--tt);padding:10px 18px 3px}
+.sb-chats{flex:1;overflow-y:auto;padding:3px 10px}.sb-ch{padding:9px 10px;border-radius:var(--rm);font-size:.82rem;color:var(--ts);cursor:pointer;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sb-ch:hover{background:var(--hover)}.sb-ch.act{background:var(--b50);color:var(--b600);font-weight:500}
+.sb-u{padding:10px 14px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:9px}.sb-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--b500),var(--teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.78rem;font-weight:700}
+/* Main */
+.mn{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tb{height:48px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;background:var(--card);border-bottom:1px solid var(--bs)}.tb-t{font-size:.95rem;font-weight:600}.tb-badge{padding:2px 10px;border-radius:var(--rp);font-size:.72rem;font-weight:600;background:#FFF3E0;color:var(--orange);margin-left:10px}
+/* Chat */
+.cht{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.mg{display:flex;gap:10px;max-width:800px;animation:mi .3s var(--ease)}@keyframes mi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.mg.u{align-self:flex-end;flex-direction:row-reverse}
+.mg-a{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700}
+.mg.ai .mg-a{background:linear-gradient(135deg,var(--b500),var(--teal));color:#fff}.mg.u .mg-a{background:var(--hover);color:var(--ts)}
+.mg-b{padding:10px 14px;border-radius:var(--rl);font-size:.88rem;line-height:1.55;max-width:650px}.mg.ai .mg-b{background:var(--card);border:1px solid var(--bd)}.mg.u .mg-b{background:var(--b500);color:#fff}
+/* Enrichment Card */
+.ec{background:var(--card);border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden;animation:mi .3s var(--ease)}
+.ec-h{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bs)}
+.ec-sp{width:18px;height:18px;border:2.5px solid var(--bd);border-top-color:var(--orange);border-radius:50%;animation:sp .7s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.ec-t{font-size:.9rem;font-weight:600;flex:1}.ec-md{padding:2px 8px;border-radius:var(--rp);font-size:.68rem;font-weight:600;background:var(--b50);color:var(--b600)}
+.ec-bd{padding:14px 16px}
+.pg-w{margin-bottom:14px}.pg-tp{display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:4px}.pg-l{color:var(--ts);font-weight:500}.pg-p{color:var(--orange);font-weight:700;font-family:var(--m)}.pg-br{height:6px;background:#EEE;border-radius:3px;overflow:hidden}.pg-fl{height:100%;background:linear-gradient(90deg,var(--orange),#F59E0B);border-radius:3px;transition:width .4s var(--ease)}
+.bg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:14px}.bi{background:var(--bg);border-radius:var(--rm);padding:8px 10px;text-align:center}.bv{font-size:1rem;font-weight:700}.bl{font-size:.68rem;color:var(--tt);text-transform:uppercase;letter-spacing:.3px}.bv.g{color:var(--green)}.bv.o{color:var(--orange)}.bv.b{color:var(--b500)}
+.tr{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}.tp{padding:3px 8px;border-radius:var(--rp);font-size:.68rem;font-weight:600}
+.tp.st{background:#E8F5E9;color:#2E7D32}.tp.th{background:#FFF3E0;color:#E65100}.tp.em{background:#FCE4EC;color:#C62828}.tp.en{background:#E3F2FD;color:#1565C0}.tp.sg{background:#F3E5F5;color:#6A1B9A}.tp.rc{background:#E0F2F1;color:#00695C}
+.sl{border-top:1px solid var(--bs);padding-top:10px}.sr{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.8rem;color:var(--ts)}.si{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.6rem}.sr.d .si{background:#E8F5E9;color:var(--green)}.sr.a .si{background:var(--b50);color:var(--b500)}.sr.p .si{background:#F5F5F5;color:var(--tt)}.sr.d{color:var(--tp)}.sr.a{color:var(--orange);font-weight:500}.stm{margin-left:auto;font-size:.7rem;color:var(--tt);font-family:var(--m)}
+/* SimilarWeb Card */
+.swc{background:linear-gradient(135deg,#E0F2F1,#F0F6FA);border:1px solid #B2DFDB;border-radius:var(--rl);padding:12px 16px;margin-top:8px;animation:mi .3s var(--ease)}.sw-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}.sw-t{font-size:.85rem;font-weight:600;color:#00695C}.sw-b{padding:2px 8px;border-radius:var(--rp);font-size:.68rem;font-weight:600;background:#B2DFDB;color:#004D40}.sw-s{display:flex;gap:14px;flex-wrap:wrap}.sw-v{font-size:.95rem;font-weight:700;color:#00695C;text-align:center}.sw-l{font-size:.68rem;color:var(--tt);text-align:center}
+/* Chip-Up */
+.cu{margin-top:8px;animation:mi .3s var(--ease)}
+.cu-c{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--card);border:1.5px solid var(--b200);border-radius:var(--rl);cursor:pointer;transition:all .25s var(--ease)}.cu-c:hover{border-color:var(--b500);box-shadow:var(--s4);transform:translateY(-1px)}
+.cu-i{width:36px;height:36px;border-radius:var(--rm);background:linear-gradient(135deg,var(--b500),var(--teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0}
+.cu-inf{flex:1}.cu-tl{font-size:.88rem;font-weight:600}.cu-mt{font-size:.72rem;color:var(--ts)}
+.cu-act{display:flex;gap:4px}.cu-btn{padding:5px 10px;border-radius:4px;font-size:.72rem;font-weight:500;color:var(--ts);transition:all .15s}.cu-btn:hover{background:var(--hover);color:var(--tp)}.cu-btn.pr{background:var(--b500);color:#fff}.cu-btn.pr:hover{background:#1A86D8}
+/* Expanded */
+.cu-e{display:none;margin-top:0;background:var(--card);border:1.5px solid var(--b200);border-radius:var(--rl);overflow:hidden;box-shadow:var(--s8)}.cu-e.op{display:block}
+.cu-tb{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--bd)}
+.cu-tbs{display:flex;gap:2px;background:var(--sidebar);border-radius:4px;padding:2px}.cu-tab{padding:5px 14px;border-radius:4px;font-size:.78rem;font-weight:500;color:var(--ts);transition:all .15s}.cu-tab:hover{color:var(--tp)}.cu-tab.act{background:var(--card);color:var(--b500);font-weight:600}
+.cu-ct{height:400px;overflow:auto}
+/* JSON */
+.jv{padding:16px;font-family:var(--m);font-size:.76rem;line-height:1.65;background:#1E1E2E;color:#CDD6F4;white-space:pre;overflow-x:auto;min-height:100%}
+.jv .jk{color:#89B4FA}.jv .js{color:#A6E3A1}.jv .jn{color:#FAB387}.jv .jb{color:#F38BA8}
+/* Preview Article Cards */
+.pv{padding:16px;display:flex;flex-direction:column;gap:12px;min-height:100%}
+.ac{background:var(--bg);border:1px solid var(--bd);border-radius:var(--rm);padding:14px}
+.ac-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}.ac-title{font-size:.88rem;font-weight:600;flex:1;margin-right:8px}.ac-thumb{width:56px;height:38px;border-radius:4px;background:#DDD;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:var(--tt);overflow:hidden}
+.ac-meta{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;font-size:.7rem;color:var(--ts)}.ac-meta span{display:flex;align-items:center;gap:2px}
+.ac-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}.at{padding:2px 7px;border-radius:var(--rp);font-size:.64rem;font-weight:600}
+.at.pos{background:#E8F5E9;color:#2E7D32}.at.neg{background:#FFEBEE;color:#C62828}.at.neu{background:#FFF8E1;color:#F57F17}.at.th{background:#FFF3E0;color:#E65100}.at.em{background:#FCE4EC;color:#AD1457}.at.en{background:#E3F2FD;color:#1565C0}.at.sg{background:#F3E5F5;color:#6A1B9A}
+.ac-conf{font-size:.68rem;color:var(--tt);display:flex;gap:8px}.ac-conf span{display:flex;align-items:center;gap:2px}
+.ac-rsn{font-size:.7rem;color:var(--ts);margin-top:6px;padding-top:6px;border-top:1px solid var(--bs);line-height:1.4;font-style:italic}
+.ac-eng{display:flex;gap:10px;margin-top:6px;padding-top:6px;border-top:1px solid var(--bs);font-size:.7rem;color:var(--ts)}.ac-eng span{display:flex;align-items:center;gap:2px}
+/* Completion */
+.cc{background:linear-gradient(135deg,#E8F5E9,#F0F6FA);border:1px solid #C8E6C9;border-radius:var(--rl);padding:14px 16px;animation:mi .3s var(--ease)}.cc-h{display:flex;align-items:center;gap:8px;cursor:pointer}.cc-i{width:24px;height:24px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem;font-weight:700}.cc-t{font-size:.9rem;font-weight:600;color:var(--green);flex:1}.cc-tg{font-size:.72rem;color:var(--tt);text-decoration:underline;cursor:pointer}.cc-b{display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.06)}.cc-b.op{display:block}.cc-sts{display:flex;gap:14px;flex-wrap:wrap}.cc-sv{font-size:1rem;font-weight:700;text-align:center}.cc-sl{font-size:.68rem;color:var(--tt);text-transform:uppercase;text-align:center}
+/* Overlay */
+.ov{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);align-items:center;justify-content:center}.ov.op{display:flex}
+.ov-c{width:92vw;max-width:1100px;height:85vh;background:var(--card);border-radius:16px;overflow:hidden;box-shadow:var(--s64);display:flex;flex-direction:column}
+.ov-tb{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--bg);border-bottom:1px solid var(--bd)}
+.ov-cl{width:32px;height:32px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--ts);transition:background .15s}.ov-cl:hover{background:var(--hover);color:var(--red)}
+.ov-bd{flex:1;overflow:auto}
+/* Input */
+.cb{padding:14px 20px;background:var(--card);border-top:1px solid var(--bs)}.cb-w{max-width:780px;margin:0 auto;display:flex;align-items:center;gap:7px}.ci{flex:1;padding:9px 14px;border:1.5px solid var(--bd);border-radius:var(--rl);font-size:.9rem;background:var(--bg);color:var(--tp);outline:none}.ci:focus{border-color:var(--b500)}.cs{width:36px;height:36px;border-radius:var(--rm);background:var(--b500);color:#fff;display:flex;align-items:center;justify-content:center}.cs:hover{background:#1A86D8}.cs svg{width:16px;height:16px}
+@media(max-width:768px){.sb{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sb">
+  <div class="sb-h"><div class="sb-i"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="sb-n">PR Solution AI</span></div>
+  <button class="sb-new" onclick="location.reload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Chat</button>
+  <div class="sb-lbl">Recent Chats</div>
+  <div class="sb-chats"><div class="sb-ch act">FreshSip Brand Analysis</div><div class="sb-ch">PepsiCo Crisis Coverage</div><div class="sb-ch">Dr Pepper Competitor Report</div></div>
+  <div class="sb-u"><div class="sb-av">KB</div><div><div style="font-size:.82rem;font-weight:600">KhadarBasha S.</div><div style="font-size:.7rem;color:var(--tt)">Senior Agentic AI Dev</div></div></div>
+</aside>
+<div class="mn">
+  <div class="tb"><div style="display:flex;align-items:center"><span class="tb-t">PR Impact Agent</span><span class="tb-badge">Phase 3: Enrichment Engine</span></div></div>
+  <div class="cht" id="C"></div>
+  <div class="cb"><div class="cb-w"><input class="ci" id="I" placeholder="Type your message..." onkeydown="if(event.key==='Enter')snd()"><button class="cs" onclick="snd()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div></div>
+</div>
+</div>
+<div class="ov" id="OV" onclick="if(event.target===this)clOv()"><div class="ov-c"><div class="ov-tb"><div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--b500),var(--teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.65rem;font-weight:700">E</div><span style="font-size:.9rem;font-weight:600">Enriched Data — FreshSip</span></div><div style="display:flex;gap:6px"><button class="cu-btn" onclick="dl()">⬇ Download</button><button class="cu-btn" onclick="alert('Share link copied!')">🔗 Share</button><button class="cu-btn" onclick="alert('Email dialog')">✉ Email</button><button class="ov-cl" onclick="clOv()">✕</button></div></div><div class="ov-bd" id="OB"></div></div></div>
+
+<script>
+const C=document.getElementById('C');
+const ED=[
+  {id:"art-001",title:"FreshSip Launches New Organic Line",source:"Reuters",author:"J. Martinez",published_date:"2026-05-18",url:"https://reuters.com/freshsip-organic",publisher_domain:"reuters.com",language:"en",media_type:"Online News",location:"New York, USA",thumbnail_url:"reuters_thumb.jpg",description:"FreshSip announced the launch of its new organic beverage line targeting health-conscious consumers across North America.",content:"FreshSip today unveiled its highly anticipated organic beverage line...",enrichment:{sentiment:{label:"Positive",confidence:.92,reason:"Article highlights product innovation and positive market positioning with no negative framing."},themes:[{level:"Main",name:"Product Launch",confidence:.95,reason:"Core topic is the announcement of a new product line."},{level:"Secondary",name:"Health & Wellness",confidence:.88,reason:"Strong emphasis on organic and health-conscious positioning."},{level:"Tertiary",name:"CPG Innovation",confidence:.72,reason:"Broader industry innovation context mentioned."}],emotion:{label:"Trust",intensity:.85},entities:[{type:"Brand",name:"FreshSip",mentions:8},{type:"Competitor",name:"PepsiCo",mentions:2},{type:"Person",name:"Sarah Chen",mentions:3},{type:"Organization",name:"FDA",mentions:1}],signals:[{type:"Emerging",description:"Growing organic beverage segment",reason:"Third major brand launch in organic space this quarter."}],reach:{domain:"reuters.com",monthly_visitors:524000000,score:98}}},
+  {id:"art-002",title:"PepsiCo vs FreshSip: Market Share Battle",source:"Forbes",author:"M. Jones",published_date:"2026-05-16",url:"https://forbes.com/pepsico-freshsip",publisher_domain:"forbes.com",language:"en",media_type:"Online News",location:"San Francisco, USA",thumbnail_url:"forbes_thumb.jpg",description:"An analysis of the competitive dynamics between PepsiCo and FreshSip in the North American beverage market.",content:"The North American beverage landscape is shifting...",enrichment:{sentiment:{label:"Neutral",confidence:.87,reason:"Balanced analytical piece presenting both sides of the competitive landscape without bias."},themes:[{level:"Main",name:"Competitive Analysis",confidence:.93,reason:"Article directly compares two brands market positions."},{level:"Secondary",name:"Market Share",confidence:.89,reason:"Revenue and market share data are central."},{level:"Tertiary",name:"Consumer Trends",confidence:.68,reason:"Brief mention of shifting consumer preferences."}],emotion:{label:"Anticipation",intensity:.62},entities:[{type:"Brand",name:"FreshSip",mentions:12},{type:"Competitor",name:"PepsiCo",mentions:15},{type:"Competitor",name:"Coca-Cola",mentions:4},{type:"Organization",name:"Nielsen",mentions:2}],signals:[{type:"Emerging",description:"FreshSip gaining in under-35 demographics",reason:"Nielsen data shows accelerating share shift."}],reach:{domain:"forbes.com",monthly_visitors:189000000,score:94}}},
+  {id:"art-003",title:"Loving our new organic line! 🌿 #FreshSip #OrganicLife",source:"Instagram",author:"@freshsip_official",published_date:"2026-05-19",url:"https://instagram.com/p/abc123",publisher_domain:"instagram.com",language:"en",media_type:"Social Media",location:"Los Angeles, USA",thumbnail_url:"ig_thumb.jpg",description:"Official FreshSip Instagram post promoting the new organic line with product imagery and lifestyle content.",content:"Loving our new organic line! Pure ingredients, bold flavors...",social_engagement:{likes:24500,comments:1832,shares:4210,impressions:892000,engagement_rate:3.42,saves:6100,reach:478000},enrichment:{sentiment:{label:"Positive",confidence:.96,reason:"Promotional content with enthusiastic tone and positive emoji usage, strong audience resonance."},themes:[{level:"Main",name:"Brand Promotion",confidence:.97,reason:"Official brand marketing post on social."},{level:"Secondary",name:"Health & Wellness",confidence:.84,reason:"Organic messaging aligns with wellness trend."},{level:"Tertiary",name:"Social Engagement",confidence:.79,reason:"Exceptionally high engagement rate indicates trend."}],emotion:{label:"Joy",intensity:.91},entities:[{type:"Brand",name:"FreshSip",mentions:3},{type:"Organization",name:"Instagram",mentions:1}],signals:[{type:"Emerging",description:"Viral organic content pattern",reason:"3.42% engagement rate exceeds industry average of 1.8%."}],reach:{domain:"instagram.com",monthly_visitors:2000000000,score:99}}}
+];
+
+function bJSON(){return JSON.stringify(ED,null,2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"([^"]+)":/g,'<span class="jk">"$1"</span>:').replace(/: "([^"]*?)"/g,': <span class="js">"$1"</span>').replace(/: (\d+\.?\d*)/g,': <span class="jn">$1</span>').replace(/: (true|false)/g,': <span class="jb">$1</span>')}
+
+function bCards(){return ED.map(a=>{
+  const s=a.enrichment.sentiment,sc={Positive:'pos',Negative:'neg',Neutral:'neu',Mixed:'mix'}[s.label]||'neu';
+  const ths=a.enrichment.themes.map(t=>`<span class="at th">${t.level}: ${t.name} (${(t.confidence*100).toFixed(0)}%)</span>`).join('');
+  const ents=a.enrichment.entities.slice(0,4).map(e=>`<span class="at en">${e.type}: ${e.name} (×${e.mentions})</span>`).join('');
+  const sigs=a.enrichment.signals.map(g=>`<span class="at sg">${g.type}: ${g.description}</span>`).join('');
+  const soc=a.social_engagement?`<div class="ac-eng"><span>❤️ ${a.social_engagement.likes.toLocaleString()}</span><span>💬 ${a.social_engagement.comments.toLocaleString()}</span><span>🔄 ${a.social_engagement.shares.toLocaleString()}</span><span>👁 ${a.social_engagement.impressions.toLocaleString()}</span><span>📊 ${a.social_engagement.engagement_rate}%</span><span>💾 ${a.social_engagement.saves.toLocaleString()}</span><span>📡 ${(a.social_engagement.reach/1000).toFixed(0)}K reach</span></div>`:'';
+  return `<div class="ac"><div class="ac-top"><div class="ac-title">${a.title}</div><div class="ac-thumb">${a.media_type==='Social Media'?'📱':'📰'}</div></div>
+  <div class="ac-meta"><span>📰 ${a.source}</span><span>✍️ ${a.author}</span><span>📅 ${a.published_date}</span><span>🌐 ${a.publisher_domain}</span><span>📍 ${a.location}</span><span>🔤 ${a.language}</span><span>📺 ${a.media_type}</span>${a.enrichment.reach?`<span>👥 ${(a.enrichment.reach.monthly_visitors/1e6).toFixed(0)}M</span>`:''}</div>
+  <div class="ac-tags"><span class="at ${sc}">Sentiment: ${s.label} (${(s.confidence*100).toFixed(0)}%)</span><span class="at em">Emotion: ${a.enrichment.emotion.label} (${(a.enrichment.emotion.intensity*100).toFixed(0)}%)</span>${ths}${ents}${sigs}</div>
+  <div class="ac-conf"><span>🎯 Sent: ${(s.confidence*100).toFixed(0)}%</span><span>📊 Theme: ${(a.enrichment.themes[0].confidence*100).toFixed(0)}%</span><span>💡 Emo: ${(a.enrichment.emotion.intensity*100).toFixed(0)}%</span><span>🏷️ Entities: ${a.enrichment.entities.length}</span></div>
+  <div class="ac-rsn"><strong>AI Reasoning:</strong> ${s.reason}</div>${soc}</div>`}).join('')}
+
+let cTab='preview';
+function sTab(t,el){cTab=t;document.querySelectorAll('.cu-tab').forEach(x=>x.classList.remove('act'));el.classList.add('act');rTab()}
+function rTab(){const el=document.getElementById('CC');if(cTab==='json')el.innerHTML=`<div class="jv">${bJSON()}</div>`;else el.innerHTML=`<div class="pv">${bCards()}</div>`}
+function exCU(){document.getElementById('CUC').style.display='none';document.getElementById('CUE').classList.add('op');rTab();C.scrollTop=C.scrollHeight}
+function clCU(){document.getElementById('CUE').classList.remove('op');document.getElementById('CUC').style.display='flex'}
+function opOv(t){cTab=t||'preview';const b=document.getElementById('OB');if(cTab==='json')b.innerHTML=`<div class="jv" style="min-height:100%">${bJSON()}</div>`;else b.innerHTML=`<div class="pv" style="padding:20px">${bCards()}</div>`;document.getElementById('OV').classList.add('op')}
+function clOv(){document.getElementById('OV').classList.remove('op')}
+function dl(){const b=new Blob([JSON.stringify(ED,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='freshsip_enriched_data.json';a.click()}
+
+function aAI(h,x=''){const d=document.createElement('div');d.className='mg ai';d.innerHTML=`<div class="mg-a">AI</div><div style="flex:1;max-width:700px"><div class="mg-b">${h}</div>${x}</div>`;C.appendChild(d);C.scrollTop=C.scrollHeight}
+function aU(t){const d=document.createElement('div');d.className='mg u';d.innerHTML=`<div class="mg-a">KB</div><div><div class="mg-b">${t}</div></div>`;C.appendChild(d);C.scrollTop=C.scrollHeight}
+function aW(h){const d=document.createElement('div');d.className='mg ai';d.innerHTML=`<div class="mg-a">AI</div><div style="flex:1;max-width:720px">${h}</div>`;C.appendChild(d);C.scrollTop=C.scrollHeight}
+function snd(){const el=document.getElementById('I');if(!el.value.trim())return;aU(el.value.trim());el.value=''}
+function w(ms){return new Promise(r=>setTimeout(r,ms))}
+
+async function run(){
+  aAI(`<strong>Phase 2 Complete</strong> — 2,847 articles parsed from your FreshSip brand analysis.<br><br>Starting <strong>Enrichment Engine</strong> with <strong>Enrichment + Reach</strong> mode using <strong>Claude claude-sonnet-4</strong>...`);
+  await w(800);
+
+  aW(`<div class="ec" id="EC"><div class="ec-h"><div class="ec-sp" id="eSp"></div><div class="ec-t" id="eT">Enrichment Agent — Processing</div><span class="ec-md">Claude claude-sonnet-4</span></div>
+  <div class="ec-bd">
+    <div class="pg-w"><div class="pg-tp"><span class="pg-l">Enriching articles...</span><span class="pg-p" id="eP">0%</span></div><div class="pg-br"><div class="pg-fl" id="eB" style="width:0%"></div></div></div>
+    <div class="bg"><div class="bi"><div class="bv b" id="bA">0 / 2,847</div><div class="bl">Articles</div></div><div class="bi"><div class="bv o" id="bB">0 / 12</div><div class="bl">Batches</div></div><div class="bi"><div class="bv" id="bT">0</div><div class="bl">Tokens</div></div><div class="bi"><div class="bv" id="bTm">0.0s</div><div class="bl">Elapsed</div></div></div>
+    <div class="tr"><span class="tp st">Sentiment</span><span class="tp th">Themes (3-level)</span><span class="tp em">Emotion</span><span class="tp en">Entities</span><span class="tp sg">Signals</span><span class="tp rc">Reach</span></div>
+    <div class="sl"><div class="sr a" id="s1"><span class="si">⟳</span>Loading articles from database<span class="stm"></span></div><div class="sr p" id="s2"><span class="si">○</span>Calculating token-optimized batches<span class="stm"></span></div><div class="sr p" id="s3"><span class="si">○</span>Processing batches through Claude LLM<span class="stm"></span></div><div class="sr p" id="s4"><span class="si">○</span>Validating enrichment JSON schemas<span class="stm"></span></div><div class="sr p" id="s5"><span class="si">○</span>Similar Web Agent — fetching reach data<span class="stm"></span></div><div class="sr p" id="s6"><span class="si">○</span>Merging reach into enrichments<span class="stm"></span></div><div class="sr p" id="s7"><span class="si">○</span>Generating dashboard-ready JSON<span class="stm"></span></div></div>
+  </div></div>`);
+
+  function cs(n,t){const e=document.getElementById('s'+n);e.className='sr d';e.querySelector('.si').textContent='✓';if(t)e.querySelector('.stm').textContent=t}
+  function as(n){const e=document.getElementById('s'+n);e.className='sr a';e.querySelector('.si').textContent='⟳'}
+
+  await w(600);cs(1,'0.6s');as(2);await w(400);cs(2,'0.4s');as(3);
+
+  for(let b=1;b<=12;b++){
+    const p=Math.round((b/12)*78);
+    document.getElementById('eB').style.width=p+'%';document.getElementById('eP').textContent=p+'%';
+    document.getElementById('bA').textContent=`${Math.round(2847*b/12).toLocaleString()} / 2,847`;
+    document.getElementById('bB').textContent=`${b} / 12`;
+    document.getElementById('bT').textContent=(b*18400).toLocaleString();
+    document.getElementById('bTm').textContent=`${(b*1.8).toFixed(1)}s`;
+    await w(220);C.scrollTop=C.scrollHeight;
+  }
+  cs(3,'21.6s');as(4);await w(300);cs(4,'0.3s');as(5);await w(300);
+
+  aW(`<div class="swc"><div class="sw-h"><span class="sw-t">🌐 Similar Web Agent — Running in Parallel</span><span class="sw-b">Active</span></div><div class="sw-s"><div><div class="sw-v">234</div><div class="sw-l">Domains</div></div><div><div class="sw-v">228</div><div class="sw-l">Resolved</div></div><div><div class="sw-v">97.4%</div><div class="sw-l">Coverage</div></div><div><div class="sw-v">1.8s</div><div class="sw-l">Duration</div></div></div></div>`);
+
+  await w(600);cs(5,'1.8s');document.getElementById('eB').style.width='90%';document.getElementById('eP').textContent='90%';as(6);
+  await w(200);cs(6,'0.2s');as(7);await w(500);cs(7,'0.5s');
+
+  document.getElementById('eB').style.width='100%';document.getElementById('eB').style.background='linear-gradient(90deg,var(--green),#4CAF50)';document.getElementById('eP').textContent='100%';
+  document.getElementById('eSp').style.display='none';document.getElementById('eT').textContent='Enrichment Agent — Complete ✓';document.getElementById('eT').style.color='var(--green)';
+  await w(400);
+
+  aW(`<div class="cc"><div class="cc-h" onclick="this.nextElementSibling.classList.toggle('op');this.querySelector('.cc-tg').textContent=this.nextElementSibling.classList.contains('op')?'Collapse':'Expand'"><div class="cc-i">✓</div><div class="cc-t">Enrichment Complete — Ready for Dashboard</div><span class="cc-tg">Expand</span></div><div class="cc-b"><div class="cc-sts"><div><div class="cc-sv">2,847</div><div class="cc-sl">Articles</div></div><div><div class="cc-sv">12</div><div class="cc-sl">Batches</div></div><div><div class="cc-sv">220,800</div><div class="cc-sl">Tokens</div></div><div><div class="cc-sv">234</div><div class="cc-sl">Domains</div></div><div><div class="cc-sv">97.4%</div><div class="cc-sl">Coverage</div></div><div><div class="cc-sv">25.4s</div><div class="cc-sl">Total Time</div></div><div><div class="cc-sv">Claude</div><div class="cc-sl">Model</div></div><div><div class="cc-sv">6</div><div class="cc-sl">Dimensions</div></div></div></div></div>`);
+
+  await w(500);
+  aAI(`Your enriched data is ready! Click below to preview articles with all tags, or view the JSON code.`);
+  await w(300);
+
+  aW(`<div class="cu" id="CUW"><div class="cu-c" id="CUC" onclick="exCU()"><div class="cu-i">E</div><div class="cu-inf"><div class="cu-tl">Enriched Data — 2,847 articles · 6 dimensions · Reach included</div><div class="cu-mt">Sentiment · Themes (3-level) · Emotion · Entities · Signals · Reach — JSON + Preview</div></div><div class="cu-act"><button class="cu-btn" onclick="event.stopPropagation();opOv('json')">{ } Code</button><button class="cu-btn pr" onclick="event.stopPropagation();exCU()">▶ Preview</button><button class="cu-btn" onclick="event.stopPropagation();opOv('preview')">⬗ Window</button><button class="cu-btn" onclick="event.stopPropagation();dl()">⬇</button><button class="cu-btn" onclick="event.stopPropagation();alert('Copied!')">🔗</button><button class="cu-btn" onclick="event.stopPropagation();alert('Email')">✉</button></div></div>
+  <div class="cu-e" id="CUE"><div class="cu-tb"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:.85rem;font-weight:600">Enriched Data Preview</span><div class="cu-tbs"><button class="cu-tab act" onclick="sTab('preview',this)">Preview</button><button class="cu-tab" onclick="sTab('json',this)">JSON Code</button></div></div><div style="display:flex;gap:4px"><button class="cu-btn" onclick="opOv(cTab)">⬗ Window</button><button class="cu-btn" onclick="dl()">⬇ Download</button><button class="cu-btn" onclick="clCU()">▼ Collapse</button></div></div><div class="cu-ct" id="CC"></div></div></div>`);
+}
+run();
+</script>
+</body>
+</html>

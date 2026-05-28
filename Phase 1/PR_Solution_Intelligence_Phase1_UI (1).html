@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Solution Intelligence — Phase 1</title>
+<link href="https://fonts.googleapis.com/css2?family=Segoe+UI+Variable:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   PR SOLUTION INTELLIGENCE — PHASE 1 FRONTEND
+   Windows 11 Fluent Design System
+   ============================================================================ */
+
+:root {
+  /* ── Windows 11 Color Tokens ── */
+  --win-blue-50: #EBF3FE;
+  --win-blue-100: #D5E8FC;
+  --win-blue-200: #A8D0FA;
+  --win-blue-300: #6CB4F5;
+  --win-blue-400: #3A96F0;
+  --win-blue-500: #0078D4;
+  --win-blue-600: #005EA8;
+  --win-blue-700: #004578;
+  --win-blue-800: #003054;
+  --win-blue-900: #001D33;
+
+  --win-teal: #00B7C3;
+  --win-green: #107C10;
+  --win-red: #D13438;
+  --win-orange: #CA5010;
+  --win-purple: #7B2F8A;
+
+  /* ── Surface & Text ── */
+  --bg-base: #F5F5F5;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #F0F0F0;
+  --bg-chat-user: #0078D4;
+  --bg-chat-ai: #FFFFFF;
+  --bg-hover: #E8E8E8;
+  --bg-active: #DFDFDF;
+  --bg-input: #FFFFFF;
+  --bg-acrylic: rgba(255,255,255,0.72);
+
+  --text-primary: #1A1A1A;
+  --text-secondary: #616161;
+  --text-tertiary: #8E8E8E;
+  --text-inverse: #FFFFFF;
+  --text-link: #0078D4;
+
+  --border-default: #E0E0E0;
+  --border-focus: #0078D4;
+  --border-subtle: #F0F0F0;
+
+  /* ── Elevation ── */
+  --shadow-2: 0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.1);
+  --shadow-4: 0 2px 4px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.08);
+  --shadow-8: 0 4px 8px rgba(0,0,0,0.04), 0 8px 16px rgba(0,0,0,0.08);
+  --shadow-16: 0 8px 16px rgba(0,0,0,0.06), 0 16px 32px rgba(0,0,0,0.1);
+  --shadow-64: 0 16px 32px rgba(0,0,0,0.08), 0 32px 64px rgba(0,0,0,0.12);
+
+  /* ── Radii ── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /* ── Motion ── */
+  --ease-smooth: cubic-bezier(0.25, 0.1, 0.25, 1.0);
+  --ease-decel: cubic-bezier(0, 0, 0, 1);
+  --ease-accel: cubic-bezier(1, 0, 1, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* ── Typography ── */
+  --font-primary: 'DM Sans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; -webkit-font-smoothing: antialiased; }
+body { font-family: var(--font-primary); background: var(--bg-base); color: var(--text-primary); overflow: hidden; height: 100vh; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, textarea, select { font-family: inherit; }
+
+/* ── Scrollbar (Fluent) ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C4C4C4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A0A0A0; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   SCREEN SYSTEM
+   ════════════════════════════════════════════════════════════════════════ */
+.screen { display: none; width: 100%; height: 100vh; }
+.screen.active { display: flex; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   LOGIN SCREEN
+   ════════════════════════════════════════════════════════════════════════ */
+.login-screen {
+  background: linear-gradient(135deg, #001D33 0%, #003054 30%, #0078D4 70%, #00B7C3 100%);
+  align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.login-screen::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(0,120,212,0.3) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(0,183,195,0.2) 0%, transparent 50%);
+  animation: loginGlow 8s ease infinite alternate;
+}
+@keyframes loginGlow {
+  0% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+.login-particles {
+  position: absolute; inset: 0; overflow: hidden;
+}
+.login-particle {
+  position: absolute; width: 4px; height: 4px; background: rgba(255,255,255,0.15);
+  border-radius: 50%; animation: particleFloat linear infinite;
+}
+@keyframes particleFloat {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+}
+
+.login-card {
+  position: relative; z-index: 2;
+  background: var(--bg-acrylic);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-xl);
+  padding: 48px 40px;
+  width: 420px; max-width: 90vw;
+  box-shadow: var(--shadow-64);
+  animation: cardEntry 0.6s var(--ease-decel) forwards;
+  opacity: 0; transform: translateY(20px) scale(0.98);
+}
+@keyframes cardEntry {
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.login-logo {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px;
+}
+.login-logo-icon {
+  width: 44px; height: 44px; background: var(--win-blue-500);
+  border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,120,212,0.4);
+}
+.login-logo-icon svg { width: 24px; height: 24px; }
+.login-logo-text { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
+.login-subtitle { color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 32px; }
+
+.login-field { margin-bottom: 18px; }
+.login-field label {
+  display: block; font-size: 0.85rem; font-weight: 500;
+  color: var(--text-primary); margin-bottom: 6px;
+}
+.login-field input {
+  width: 100%; padding: 10px 14px; font-size: 0.95rem;
+  border: 1px solid var(--border-default); border-radius: var(--radius-md);
+  background: var(--bg-input); color: var(--text-primary);
+  transition: border var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth);
+  outline: none;
+}
+.login-field input:focus {
+  border-color: var(--win-blue-500);
+  box-shadow: 0 0 0 2px rgba(0,120,212,0.15);
+}
+.login-field input::placeholder { color: var(--text-tertiary); }
+
+.login-btn {
+  width: 100%; padding: 12px 24px; font-size: 1rem; font-weight: 600;
+  background: var(--win-blue-500); color: white;
+  border-radius: var(--radius-md); margin-top: 8px;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  position: relative; overflow: hidden;
+}
+.login-btn:hover { background: #1A86D8; box-shadow: 0 4px 12px rgba(0,120,212,0.35); transform: translateY(-1px); }
+.login-btn:active { transform: translateY(0); background: var(--win-blue-600); }
+
+.login-forgot {
+  display: block; text-align: center; margin-top: 16px;
+  color: var(--text-link); font-size: 0.85rem; text-decoration: none;
+  transition: opacity var(--duration-fast);
+}
+.login-forgot:hover { opacity: 0.8; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   APP LAYOUT (Home + Chat + Settings)
+   ════════════════════════════════════════════════════════════════════════ */
+.app-screen { flex-direction: row; height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 280px; min-width: 280px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-default);
+  display: flex; flex-direction: column;
+  transition: width var(--duration-normal) var(--ease-smooth);
+}
+.sidebar-header {
+  padding: 16px 16px 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sidebar-brand {
+  display: flex; align-items: center; gap: 10px;
+}
+.sidebar-brand-icon {
+  width: 32px; height: 32px; background: var(--win-blue-500);
+  border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+}
+.sidebar-brand-icon svg { width: 18px; height: 18px; }
+.sidebar-brand-name { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.2px; }
+
+.sidebar-new-chat {
+  margin: 8px 12px; padding: 10px 16px;
+  background: var(--win-blue-500); color: white;
+  border-radius: var(--radius-md); font-size: 0.88rem; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+.sidebar-new-chat:hover { background: #1A86D8; box-shadow: var(--shadow-4); }
+
+.sidebar-nav { padding: 8px 12px; }
+.sidebar-nav-label {
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-tertiary);
+  padding: 8px 8px 4px; margin-top: 8px;
+}
+.sidebar-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: var(--radius-md);
+  font-size: 0.88rem; color: var(--text-secondary);
+  transition: all var(--duration-fast) var(--ease-smooth);
+  cursor: pointer; width: 100%; text-align: left;
+}
+.sidebar-nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-nav-item.active { background: var(--win-blue-50); color: var(--win-blue-500); font-weight: 600; }
+.sidebar-nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+.sidebar-chats { flex: 1; overflow-y: auto; padding: 4px 12px; }
+.sidebar-chat-item {
+  padding: 10px 12px; border-radius: var(--radius-md);
+  font-size: 0.85rem; color: var(--text-secondary);
+  cursor: pointer; transition: background var(--duration-fast); margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-chat-item:hover { background: var(--bg-hover); }
+.sidebar-chat-item.active { background: var(--win-blue-50); color: var(--win-blue-600); font-weight: 500; }
+
+.sidebar-user {
+  padding: 12px 16px; border-top: 1px solid var(--border-default);
+  display: flex; align-items: center; gap: 10px;
+}
+.sidebar-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--win-blue-500), var(--win-teal));
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 0.82rem; font-weight: 700;
+}
+.sidebar-user-name { font-size: 0.85rem; font-weight: 600; }
+.sidebar-user-role { font-size: 0.72rem; color: var(--text-tertiary); }
+
+/* ── Main Content ── */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Top Bar ── */
+.topbar {
+  height: 52px; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg-card); border-bottom: 1px solid var(--border-subtle);
+}
+.topbar-title { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar-btn {
+  padding: 6px 10px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); transition: all var(--duration-fast);
+  display: flex; align-items: center; gap: 6px; font-size: 0.82rem;
+}
+.topbar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.topbar-btn svg { width: 16px; height: 16px; }
+
+/* ── Content Area ── */
+.content-area { flex: 1; overflow-y: auto; }
+
+/* ── Page containers ── */
+.page { display: none; height: 100%; }
+.page.active { display: flex; flex-direction: column; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   HOME PAGE
+   ════════════════════════════════════════════════════════════════════════ */
+.home-page { align-items: center; justify-content: center; padding: 40px 24px; overflow-y: auto; }
+
+.home-hero { text-align: center; margin-bottom: 40px; animation: fadeUp 0.5s var(--ease-decel) forwards; opacity: 0; }
+@keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+.home-hero { transform: translateY(12px); }
+.home-greeting {
+  font-size: 2rem; font-weight: 700; color: var(--text-primary);
+  letter-spacing: -0.5px; margin-bottom: 8px;
+}
+.home-greeting span { color: var(--win-blue-500); }
+.home-subtext { font-size: 1.05rem; color: var(--text-secondary); max-width: 500px; margin: 0 auto; }
+
+/* Agent Cards Grid */
+.agent-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px; max-width: 1100px; width: 100%; margin-bottom: 40px;
+}
+.agent-card {
+  background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: 24px 20px;
+  cursor: pointer; transition: all var(--duration-normal) var(--ease-smooth);
+  position: relative; overflow: hidden;
+  animation: cardStagger 0.5s var(--ease-decel) forwards;
+  opacity: 0; transform: translateY(16px);
+}
+.agent-card:nth-child(1) { animation-delay: 0.1s; }
+.agent-card:nth-child(2) { animation-delay: 0.17s; }
+.agent-card:nth-child(3) { animation-delay: 0.24s; }
+.agent-card:nth-child(4) { animation-delay: 0.31s; }
+.agent-card:nth-child(5) { animation-delay: 0.38s; }
+@keyframes cardStagger { to { opacity: 1; transform: translateY(0); } }
+
+.agent-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--agent-color, var(--win-blue-500));
+  transform: scaleX(0); transform-origin: left;
+  transition: transform var(--duration-normal) var(--ease-smooth);
+}
+.agent-card:hover::before { transform: scaleX(1); }
+.agent-card:hover { box-shadow: var(--shadow-8); transform: translateY(-2px); border-color: transparent; }
+
+.agent-card-icon {
+  width: 44px; height: 44px; border-radius: var(--radius-md);
+  background: var(--agent-bg, var(--win-blue-50));
+  display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+}
+.agent-card-icon svg { width: 22px; height: 22px; color: var(--agent-color, var(--win-blue-500)); }
+.agent-card-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.agent-card-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45; }
+.agent-card-badge {
+  display: inline-block; margin-top: 12px; padding: 3px 10px;
+  background: var(--agent-bg, var(--win-blue-50)); color: var(--agent-color, var(--win-blue-500));
+  font-size: 0.7rem; font-weight: 600; border-radius: var(--radius-pill);
+}
+
+/* Home prompt bar */
+.home-prompt-bar {
+  max-width: 700px; width: 100%; position: relative;
+  animation: fadeUp 0.5s var(--ease-decel) 0.45s forwards; opacity: 0; transform: translateY(12px);
+}
+.home-prompt-input {
+  width: 100%; padding: 14px 52px 14px 20px;
+  border: 1.5px solid var(--border-default); border-radius: var(--radius-xl);
+  background: var(--bg-card); font-size: 0.95rem; color: var(--text-primary);
+  box-shadow: var(--shadow-4); outline: none;
+  transition: border var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast);
+}
+.home-prompt-input:focus { border-color: var(--win-blue-500); box-shadow: var(--shadow-8), 0 0 0 3px rgba(0,120,212,0.1); }
+.home-prompt-input::placeholder { color: var(--text-tertiary); }
+.home-prompt-send {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; border-radius: var(--radius-md);
+  background: var(--win-blue-500); color: white;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--duration-fast);
+}
+.home-prompt-send:hover { background: #1A86D8; }
+.home-prompt-send svg { width: 18px; height: 18px; }
+
+/* File drop zone */
+.home-drop-hint {
+  margin-top: 12px; text-align: center;
+  font-size: 0.78rem; color: var(--text-tertiary);
+}
+.home-drop-hint span { color: var(--win-blue-500); cursor: pointer; font-weight: 500; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   CHAT PAGE
+   ════════════════════════════════════════════════════════════════════════ */
+.chat-page { position: relative; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+.chat-msg { display: flex; gap: 12px; max-width: 800px; animation: msgIn 0.3s var(--ease-decel); }
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.chat-msg-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700;
+}
+.chat-msg.ai .chat-msg-avatar { background: linear-gradient(135deg, var(--win-blue-500), var(--win-teal)); color: white; }
+.chat-msg.user .chat-msg-avatar { background: var(--bg-hover); color: var(--text-secondary); }
+
+.chat-msg-bubble {
+  padding: 12px 16px; border-radius: var(--radius-lg); font-size: 0.92rem; line-height: 1.55;
+  max-width: 600px;
+}
+.chat-msg.ai .chat-msg-bubble { background: var(--bg-chat-ai); border: 1px solid var(--border-default); color: var(--text-primary); }
+.chat-msg.user .chat-msg-bubble { background: var(--bg-chat-user); color: white; }
+
+/* Chat chips / options */
+.chat-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chat-chip {
+  padding: 8px 16px; border-radius: var(--radius-pill);
+  border: 1.5px solid var(--win-blue-200); background: var(--win-blue-50);
+  color: var(--win-blue-600); font-size: 0.82rem; font-weight: 500;
+  transition: all var(--duration-fast) var(--ease-smooth); cursor: pointer;
+}
+.chat-chip:hover { background: var(--win-blue-500); color: white; border-color: var(--win-blue-500); }
+
+/* Chat input */
+.chat-input-area {
+  padding: 16px 24px; background: var(--bg-card);
+  border-top: 1px solid var(--border-subtle);
+}
+.chat-input-wrapper {
+  max-width: 800px; margin: 0 auto; position: relative;
+  display: flex; align-items: center; gap: 8px;
+}
+.chat-upload-btn {
+  width: 38px; height: 38px; border-radius: var(--radius-md);
+  background: var(--bg-hover); color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--duration-fast);
+}
+.chat-upload-btn:hover { background: var(--win-blue-50); color: var(--win-blue-500); }
+.chat-upload-btn svg { width: 18px; height: 18px; }
+
+.chat-input {
+  flex: 1; padding: 10px 16px; border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-lg); font-size: 0.92rem; background: var(--bg-base);
+  color: var(--text-primary); outline: none;
+  transition: border var(--duration-fast), box-shadow var(--duration-fast);
+}
+.chat-input:focus { border-color: var(--win-blue-500); box-shadow: 0 0 0 2px rgba(0,120,212,0.12); }
+
+.chat-send-btn {
+  width: 38px; height: 38px; border-radius: var(--radius-md);
+  background: var(--win-blue-500); color: white;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--duration-fast);
+}
+.chat-send-btn:hover { background: #1A86D8; }
+.chat-send-btn svg { width: 18px; height: 18px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   SETTINGS PAGE
+   ════════════════════════════════════════════════════════════════════════ */
+.settings-page { overflow-y: auto; }
+.settings-container { max-width: 960px; margin: 0 auto; padding: 28px 32px; }
+.settings-header { margin-bottom: 24px; }
+.settings-title { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
+.settings-desc { font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px; }
+
+/* Settings Tabs */
+.settings-tabs {
+  display: flex; gap: 2px; background: var(--bg-sidebar);
+  border-radius: var(--radius-md); padding: 3px; margin-bottom: 24px; width: fit-content;
+}
+.settings-tab {
+  padding: 8px 20px; border-radius: var(--radius-sm);
+  font-size: 0.85rem; font-weight: 500; color: var(--text-secondary);
+  transition: all var(--duration-fast);
+}
+.settings-tab:hover { color: var(--text-primary); }
+.settings-tab.active { background: var(--bg-card); color: var(--win-blue-500); font-weight: 600; box-shadow: var(--shadow-2); }
+
+/* Settings content */
+.settings-section { display: none; }
+.settings-section.active { display: block; }
+
+/* Data Source Cards */
+.ds-card {
+  background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: 20px; margin-bottom: 14px;
+  transition: box-shadow var(--duration-fast);
+}
+.ds-card:hover { box-shadow: var(--shadow-4); }
+.ds-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.ds-card-name { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.ds-card-badge {
+  padding: 2px 8px; border-radius: var(--radius-pill); font-size: 0.68rem; font-weight: 600;
+}
+.ds-card-badge.connected { background: #E8F5E9; color: #2E7D32; }
+.ds-card-badge.disconnected { background: #FFF3E0; color: #E65100; }
+
+.ds-field { margin-bottom: 12px; }
+.ds-field label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+.ds-field input, .ds-field select {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); font-size: 0.88rem; background: var(--bg-base);
+  color: var(--text-primary); outline: none;
+  transition: border var(--duration-fast);
+}
+.ds-field input:focus, .ds-field select:focus { border-color: var(--win-blue-500); }
+.ds-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.ds-actions { display: flex; gap: 8px; margin-top: 8px; }
+.ds-btn {
+  padding: 7px 16px; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 500;
+  transition: all var(--duration-fast);
+}
+.ds-btn.primary { background: var(--win-blue-500); color: white; }
+.ds-btn.primary:hover { background: #1A86D8; }
+.ds-btn.secondary { background: var(--bg-hover); color: var(--text-primary); }
+.ds-btn.secondary:hover { background: var(--bg-active); }
+.ds-btn.danger { color: var(--win-red); }
+.ds-btn.danger:hover { background: #FDEAEB; }
+
+/* Toggle switch */
+.toggle { position: relative; width: 40px; height: 22px; cursor: pointer; }
+.toggle input { display: none; }
+.toggle-slider {
+  position: absolute; inset: 0; background: #C4C4C4;
+  border-radius: 11px; transition: background var(--duration-fast);
+}
+.toggle-slider::before {
+  content: ''; position: absolute; width: 16px; height: 16px;
+  background: white; border-radius: 50%; top: 3px; left: 3px;
+  transition: transform var(--duration-fast);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle input:checked + .toggle-slider { background: var(--win-blue-500); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+/* Skill cards */
+.skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.skill-card {
+  background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: 18px;
+  transition: all var(--duration-fast);
+}
+.skill-card:hover { box-shadow: var(--shadow-4); }
+.skill-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.skill-card-icon {
+  width: 34px; height: 34px; border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.skill-card-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+.skill-card-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4; }
+.skill-card-tag {
+  display: inline-block; margin-top: 10px; padding: 2px 8px;
+  border-radius: var(--radius-pill); font-size: 0.68rem; font-weight: 600;
+  background: var(--win-blue-50); color: var(--win-blue-600);
+}
+.skill-card-tag.locked { background: #F3E8F9; color: var(--win-purple); }
+
+/* Add new button */
+.add-new-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: var(--radius-md);
+  border: 1.5px dashed var(--border-default);
+  color: var(--text-secondary); font-size: 0.88rem; font-weight: 500;
+  transition: all var(--duration-fast); margin-bottom: 20px;
+}
+.add-new-btn:hover { border-color: var(--win-blue-500); color: var(--win-blue-500); background: var(--win-blue-50); }
+.add-new-btn svg { width: 16px; height: 16px; }
+
+/* Model selector */
+.model-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.model-card {
+  background: var(--bg-card); border: 2px solid var(--border-default);
+  border-radius: var(--radius-lg); padding: 20px; cursor: pointer;
+  transition: all var(--duration-fast); text-align: center;
+}
+.model-card:hover { border-color: var(--win-blue-300); }
+.model-card.selected { border-color: var(--win-blue-500); background: var(--win-blue-50); }
+.model-card-name { font-size: 1rem; font-weight: 700; margin-top: 8px; }
+.model-card-provider { font-size: 0.78rem; color: var(--text-secondary); }
+.model-icon { font-size: 2rem; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .sidebar { position: fixed; left: -280px; z-index: 100; height: 100vh; transition: left var(--duration-normal); }
+  .sidebar.open { left: 0; box-shadow: var(--shadow-64); }
+  .agent-cards { grid-template-columns: 1fr; }
+  .settings-container { padding: 20px 16px; }
+  .ds-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="screen login-screen active" id="loginScreen">
+  <div class="login-particles" id="particles"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <span class="login-logo-text">PR Solution Intelligence</span>
+    </div>
+    <p class="login-subtitle">Agentic AI Platform — Sign in to continue</p>
+
+    <div class="login-field">
+      <label>Email address</label>
+      <input type="email" id="loginEmail" placeholder="you@company.com" value="khadar@amx.com">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter your password" value="••••••••">
+    </div>
+    <button class="login-btn" onclick="handleLogin()">Sign In</button>
+    <a href="#" class="login-forgot">Forgot password?</a>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     APP SCREEN (Sidebar + Main)
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="screen app-screen" id="appScreen">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <span class="sidebar-brand-name">PR Solution AI</span>
+      </div>
+    </div>
+
+    <button class="sidebar-new-chat" onclick="showPage('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Chat
+    </button>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-label">Navigation</div>
+      <button class="sidebar-nav-item active" onclick="showPage('home')" data-page="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
+        Home
+      </button>
+      <button class="sidebar-nav-item" onclick="showPage('chat')" data-page="chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"/></svg>
+        Chat
+      </button>
+      <button class="sidebar-nav-item" onclick="showPage('settings')" data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.2.65.77 1.09 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Settings
+      </button>
+      <div class="sidebar-nav-label">Recent Chats</div>
+    </nav>
+
+    <div class="sidebar-chats" id="sidebarChats">
+      <div class="sidebar-chat-item" onclick="showPage('chat')">FreshSip Brand Analysis</div>
+      <div class="sidebar-chat-item" onclick="showPage('chat')">Crisis: PepsiCo Coverage</div>
+      <div class="sidebar-chat-item" onclick="showPage('chat')">Florida's Natural Sentiment</div>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">KB</div>
+      <div>
+        <div class="sidebar-user-name">KhadarBasha S.</div>
+        <div class="sidebar-user-role">Senior Agentic AI Dev</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">Home</div>
+      <div class="topbar-actions">
+        <button class="topbar-btn" onclick="handleLogout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign Out
+        </button>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <!-- ═══ HOME PAGE ═══ -->
+      <div class="page home-page active" id="homePage">
+        <div class="home-hero">
+          <h1 class="home-greeting">Good morning, <span>KhadarBasha</span></h1>
+          <p class="home-subtext">Select an AI agent to start your analysis, or type a prompt below.</p>
+        </div>
+
+        <div class="agent-cards">
+          <div class="agent-card" style="--agent-color:#0078D4;--agent-bg:#EBF3FE" onclick="startChat('PR Impact Agent')">
+            <div class="agent-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </div>
+            <div class="agent-card-title">PR Impact Agent</div>
+            <div class="agent-card-desc">Measure PR campaign effectiveness, coverage reach, and brand visibility impact.</div>
+            <div class="agent-card-badge">Impact Analysis</div>
+          </div>
+          <div class="agent-card" style="--agent-color:#00897B;--agent-bg:#E0F2F1" onclick="startChat('Media Monitoring Agent')">
+            <div class="agent-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            <div class="agent-card-title">Media Monitoring Agent</div>
+            <div class="agent-card-desc">Track brand mentions across news, social media, and online channels in real-time.</div>
+            <div class="agent-card-badge">Real-Time Tracking</div>
+          </div>
+          <div class="agent-card" style="--agent-color:#E65100;--agent-bg:#FFF3E0" onclick="startChat('Media Measurement Agent')">
+            <div class="agent-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <div class="agent-card-title">Media Measurement Agent</div>
+            <div class="agent-card-desc">Quantify media value, sentiment distribution, and comparative brand analytics.</div>
+            <div class="agent-card-badge">Metrics & KPIs</div>
+          </div>
+          <div class="agent-card" style="--agent-color:#6A1B9A;--agent-bg:#F3E5F5" onclick="startChat('Reputation Index Agent')">
+            <div class="agent-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </div>
+            <div class="agent-card-title">Reputation Index Agent</div>
+            <div class="agent-card-desc">Calculate brand reputation scores across trust, visibility, and public perception.</div>
+            <div class="agent-card-badge">Reputation Score</div>
+          </div>
+          <div class="agent-card" style="--agent-color:#D13438;--agent-bg:#FFEBEE" onclick="startChat('Crisis Management Agent')">
+            <div class="agent-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="agent-card-title">Crisis Management Agent</div>
+            <div class="agent-card-desc">Detect, assess, and monitor brand crises with severity scoring and alert systems.</div>
+            <div class="agent-card-badge">Crisis Detection</div>
+          </div>
+        </div>
+
+        <div class="home-prompt-bar">
+          <input class="home-prompt-input" placeholder="Ask anything about your brand, media coverage, or PR performance..." id="homePrompt" onkeydown="if(event.key==='Enter')startChatFromPrompt()">
+          <button class="home-prompt-send" onclick="startChatFromPrompt()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <div class="home-drop-hint">Drag & drop CSV or JSON file here, or <span>browse files</span></div>
+      </div>
+
+      <!-- ═══ CHAT PAGE ═══ -->
+      <div class="page chat-page" id="chatPage">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+          <div class="chat-input-wrapper">
+            <button class="chat-upload-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <input class="chat-input" placeholder="Type your message..." id="chatInput" onkeydown="if(event.key==='Enter')sendMessage()">
+            <button class="chat-send-btn" onclick="sendMessage()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ SETTINGS PAGE ═══ -->
+      <div class="page settings-page" id="settingsPage">
+        <div class="settings-container">
+          <div class="settings-header">
+            <h2 class="settings-title">Settings</h2>
+            <p class="settings-desc">Configure data sources, model preferences, skills, and agents.</p>
+          </div>
+
+          <div class="settings-tabs">
+            <button class="settings-tab active" onclick="showSettingsTab('datasources')">Data Sources</button>
+            <button class="settings-tab" onclick="showSettingsTab('mcp')">MCP</button>
+            <button class="settings-tab" onclick="showSettingsTab('model')">Model</button>
+            <button class="settings-tab" onclick="showSettingsTab('skills')">Skills</button>
+            <button class="settings-tab" onclick="showSettingsTab('agents')">Agents</button>
+          </div>
+
+          <!-- DATA SOURCES TAB -->
+          <div class="settings-section active" id="datasourcesSection">
+            <button class="add-new-btn" onclick="alert('Add new data source modal')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add New Data Source
+            </button>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name">
+                  <span style="font-size:1.2rem">📡</span> Meltwater API
+                  <span class="ds-card-badge connected">Connected</span>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>API Key</label><input type="password" value="mw-sk-xxxxxxxxxxxx" placeholder="Enter API key"></div>
+                <div class="ds-field"><label>Endpoint URL</label><input value="https://api.meltwater.com/v3" placeholder="API endpoint"></div>
+              </div>
+              <div class="ds-actions">
+                <button class="ds-btn primary">Test Connection</button>
+                <button class="ds-btn secondary">Save</button>
+              </div>
+            </div>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name">
+                  <span style="font-size:1.2rem">🌐</span> Opoint API
+                  <span class="ds-card-badge disconnected">Not Connected</span>
+                </div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>API Key</label><input type="password" placeholder="Enter API key"></div>
+                <div class="ds-field"><label>Endpoint URL</label><input placeholder="https://api.opoint.com/v2"></div>
+              </div>
+              <div class="ds-actions">
+                <button class="ds-btn primary">Test Connection</button>
+                <button class="ds-btn secondary">Save</button>
+              </div>
+            </div>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name"><span style="font-size:1.2rem">🔗</span> Webz API <span class="ds-card-badge connected">Connected</span></div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>API Key</label><input type="password" value="webz-xxxxxxxxxxxx" placeholder="Enter API key"></div>
+                <div class="ds-field"><label>Endpoint URL</label><input value="https://api.webz.io/v1" placeholder="API endpoint"></div>
+              </div>
+              <div class="ds-actions"><button class="ds-btn primary">Test Connection</button><button class="ds-btn secondary">Save</button></div>
+            </div>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name"><span style="font-size:1.2rem">🐦</span> Twitter / X API <span class="ds-card-badge disconnected">Not Connected</span></div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>Bearer Token</label><input type="password" placeholder="Enter bearer token"></div>
+                <div class="ds-field"><label>API Version</label><select><option>v2 (Current)</option><option>v1.1 (Legacy)</option></select></div>
+              </div>
+              <div class="ds-actions"><button class="ds-btn primary">Test Connection</button><button class="ds-btn secondary">Save</button></div>
+            </div>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name"><span style="font-size:1.2rem">📊</span> Infovision API <span class="ds-card-badge disconnected">Not Connected</span></div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>API Key</label><input type="password" placeholder="Enter API key"></div>
+                <div class="ds-field"><label>Endpoint URL</label><input placeholder="https://api.infovision.com"></div>
+              </div>
+              <div class="ds-actions"><button class="ds-btn primary">Test Connection</button><button class="ds-btn secondary">Save</button></div>
+            </div>
+          </div>
+
+          <!-- MCP TAB -->
+          <div class="settings-section" id="mcpSection">
+            <button class="add-new-btn" onclick="alert('Add MCP connection modal')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add MCP Connection
+            </button>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name"><span style="font-size:1.2rem">🔌</span> Meltwater MCP <span class="ds-card-badge connected">Active</span></div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>MCP Server URL</label><input value="https://mcp.meltwater.com/sse" placeholder="MCP endpoint"></div>
+                <div class="ds-field"><label>Auth Token</label><input type="password" value="mcp-tk-xxxxxxxxxxxx" placeholder="MCP token"></div>
+              </div>
+              <div class="ds-actions"><button class="ds-btn primary">Verify Connection</button><button class="ds-btn secondary">Save</button><button class="ds-btn danger">Remove</button></div>
+            </div>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name"><span style="font-size:1.2rem">🔌</span> Opoint MCP <span class="ds-card-badge disconnected">Inactive</span></div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>MCP Server URL</label><input placeholder="https://mcp.opoint.com/sse"></div>
+                <div class="ds-field"><label>Auth Token</label><input type="password" placeholder="Enter MCP token"></div>
+              </div>
+              <div class="ds-actions"><button class="ds-btn primary">Verify Connection</button><button class="ds-btn secondary">Save</button><button class="ds-btn danger">Remove</button></div>
+            </div>
+
+            <div class="ds-card">
+              <div class="ds-card-header">
+                <div class="ds-card-name"><span style="font-size:1.2rem">🔌</span> Custom MCP Source <span class="ds-card-badge disconnected">Inactive</span></div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>Source Name</label><input placeholder="My Custom Source"></div>
+                <div class="ds-field"><label>MCP Server URL</label><input placeholder="https://your-mcp-server.com/sse"></div>
+              </div>
+              <div class="ds-field"><label>Auth Token</label><input type="password" placeholder="Enter MCP token"></div>
+              <div class="ds-actions"><button class="ds-btn primary">Verify Connection</button><button class="ds-btn secondary">Save</button><button class="ds-btn danger">Remove</button></div>
+            </div>
+          </div>
+
+          <!-- MODEL TAB -->
+          <div class="settings-section" id="modelSection">
+            <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:20px;">Select your default LLM provider. You can override per chat session.</p>
+            <div class="model-grid">
+              <div class="model-card selected" onclick="selectModel(this)">
+                <div class="model-icon">🟣</div>
+                <div class="model-card-name">Claude</div>
+                <div class="model-card-provider">Anthropic — claude-sonnet-4</div>
+              </div>
+              <div class="model-card" onclick="selectModel(this)">
+                <div class="model-icon">🟢</div>
+                <div class="model-card-name">GPT</div>
+                <div class="model-card-provider">OpenAI — gpt-4o</div>
+              </div>
+              <div class="model-card" onclick="selectModel(this)">
+                <div class="model-icon">🔵</div>
+                <div class="model-card-name">Ollama</div>
+                <div class="model-card-provider">Local — llama3.1</div>
+              </div>
+              <div class="model-card" onclick="selectModel(this)">
+                <div class="model-icon">🟠</div>
+                <div class="model-card-name">Perplexity</div>
+                <div class="model-card-provider">Perplexity — sonar-pro</div>
+              </div>
+            </div>
+
+            <div class="ds-card">
+              <div class="ds-card-header"><div class="ds-card-name">Model Configuration</div></div>
+              <div class="ds-row">
+                <div class="ds-field"><label>API Key</label><input type="password" value="sk-ant-xxxxxxxxxxxx" placeholder="Enter API key for selected model"></div>
+                <div class="ds-field"><label>Max Output Tokens</label><input type="number" value="4096" placeholder="4096"></div>
+              </div>
+              <div class="ds-row">
+                <div class="ds-field"><label>Temperature</label><input type="range" min="0" max="100" value="30" style="width:100%"><span style="font-size:0.78rem;color:var(--text-tertiary)">0.3 — Balanced</span></div>
+                <div class="ds-field"><label>Model Version</label><select><option>claude-sonnet-4-20250514</option><option>claude-opus-4-20250514</option><option>claude-haiku-4-20250514</option></select></div>
+              </div>
+              <div class="ds-actions"><button class="ds-btn primary">Save Configuration</button></div>
+            </div>
+          </div>
+
+          <!-- SKILLS TAB -->
+          <div class="settings-section" id="skillsSection">
+            <button class="add-new-btn" onclick="alert('Add new skill modal')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add New Skill
+            </button>
+
+            <div class="skills-grid">
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#EBF3FE">🏷️</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Sentiment Analysis</div>
+                <div class="skill-card-desc">Classify article sentiment with confidence scoring and LLM reasoning chains.</div>
+                <span class="skill-card-tag locked">Default — Locked</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#E0F2F1">📋</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Theme Classification</div>
+                <div class="skill-card-desc">Multi-level theme tagging (Main, Secondary, Tertiary) with confidence per level.</div>
+                <span class="skill-card-tag locked">Default — Locked</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#FFF3E0">😊</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Emotion Detection</div>
+                <div class="skill-card-desc">Detect primary emotions (joy, anger, fear, surprise, sadness, trust, disgust).</div>
+                <span class="skill-card-tag locked">Default — Locked</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#F3E5F5">🏢</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Entity Extraction</div>
+                <div class="skill-card-desc">Extract People, Companies, Organizations, Brands, and Competitors from text.</div>
+                <span class="skill-card-tag locked">Default — Locked</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#FFEBEE">📡</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Signal Detection</div>
+                <div class="skill-card-desc">Identify emerging, declining, and anomaly signals with reasoning.</div>
+                <span class="skill-card-tag locked">Default — Locked</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#E8F5E9">📈</div>
+                  <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Reach Analysis</div>
+                <div class="skill-card-desc">Fetch publisher domain reach via Similar Web for audience measurement.</div>
+                <span class="skill-card-tag">User Added</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#FFF8E1">🔍</div>
+                  <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Boolean Query Builder</div>
+                <div class="skill-card-desc">Auto-generate Boolean queries from brand, competitors, and date parameters.</div>
+                <span class="skill-card-tag">User Added</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header">
+                  <div class="skill-card-icon" style="background:#E3F2FD">🤖</div>
+                  <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+                </div>
+                <div class="skill-card-title">Custom Tagging</div>
+                <div class="skill-card-desc">Create custom enrichment tags with your own prompt templates and schemas.</div>
+                <span class="skill-card-tag">User Added</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- AGENTS TAB -->
+          <div class="settings-section" id="agentsSection">
+            <button class="add-new-btn" onclick="alert('Add agent modal — browse available agents')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Agent (max 4 additional)
+            </button>
+            <div class="skills-grid">
+              <div class="skill-card">
+                <div class="skill-card-header"><div class="skill-card-icon" style="background:#EBF3FE">⚡</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label></div>
+                <div class="skill-card-title">PR Impact Agent</div>
+                <div class="skill-card-desc">Measure PR campaign effectiveness, coverage reach, and brand visibility.</div>
+                <span class="skill-card-tag locked">Default Agent</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header"><div class="skill-card-icon" style="background:#E0F2F1">🔍</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label></div>
+                <div class="skill-card-title">Media Monitoring Agent</div>
+                <div class="skill-card-desc">Real-time brand mention tracking across news and social channels.</div>
+                <span class="skill-card-tag locked">Default Agent</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header"><div class="skill-card-icon" style="background:#FFF3E0">📊</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label></div>
+                <div class="skill-card-title">Media Measurement Agent</div>
+                <div class="skill-card-desc">Quantify media value, sentiment distribution, and comparative analytics.</div>
+                <span class="skill-card-tag locked">Default Agent</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header"><div class="skill-card-icon" style="background:#F3E5F5">⭐</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label></div>
+                <div class="skill-card-title">Reputation Index Agent</div>
+                <div class="skill-card-desc">Calculate brand reputation scores across trust and public perception.</div>
+                <span class="skill-card-tag locked">Default Agent</span>
+              </div>
+              <div class="skill-card">
+                <div class="skill-card-header"><div class="skill-card-icon" style="background:#FFEBEE">🚨</div>
+                  <label class="toggle"><input type="checkbox" checked disabled><span class="toggle-slider"></span></label></div>
+                <div class="skill-card-title">Crisis Management Agent</div>
+                <div class="skill-card-desc">Detect, assess, and monitor brand crises with severity scoring.</div>
+                <span class="skill-card-tag locked">Default Agent</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   PR Solution Intelligence — Phase 1 Frontend Logic
+   ============================================================================ */
+
+// ── Login particles ────────────────────────────────────────────────────────
+(function initParticles() {
+  const container = document.getElementById('particles');
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('div');
+    p.className = 'login-particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (6 + Math.random() * 10) + 's';
+    p.style.animationDelay = Math.random() * 8 + 's';
+    p.style.width = p.style.height = (2 + Math.random() * 4) + 'px';
+    container.appendChild(p);
+  }
+})();
+
+// ── Screen / Page Management ───────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(page + 'Page').classList.add('active');
+
+  document.querySelectorAll('.sidebar-nav-item').forEach(n => n.classList.remove('active'));
+  const navItem = document.querySelector(`.sidebar-nav-item[data-page="${page}"]`);
+  if (navItem) navItem.classList.add('active');
+
+  const titles = { home: 'Home', chat: 'Chat', settings: 'Settings' };
+  document.getElementById('topbarTitle').textContent = titles[page] || 'Home';
+}
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+function handleLogin() {
+  const btn = document.querySelector('.login-btn');
+  btn.textContent = 'Signing in...';
+  btn.style.opacity = '0.7';
+  setTimeout(() => {
+    showScreen('appScreen');
+    btn.textContent = 'Sign In';
+    btn.style.opacity = '1';
+  }, 800);
+}
+
+function handleLogout() {
+  showScreen('loginScreen');
+  document.getElementById('chatMessages').innerHTML = '';
+}
+
+// ── Chat ────────────────────────────────────────────────────────────────────
+let currentAgent = 'PR Impact Agent';
+const chatEl = document.getElementById('chatMessages');
+
+function addMessage(role, text, chips) {
+  const msg = document.createElement('div');
+  msg.className = `chat-msg ${role}`;
+  msg.innerHTML = `
+    <div class="chat-msg-avatar">${role === 'ai' ? 'AI' : 'KB'}</div>
+    <div>
+      <div class="chat-msg-bubble">${text}</div>
+      ${chips ? `<div class="chat-chips">${chips.map(c => `<button class="chat-chip" onclick="handleChip('${c}')">${c}</button>`).join('')}</div>` : ''}
+    </div>
+  `;
+  chatEl.appendChild(msg);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function startChat(agentName) {
+  currentAgent = agentName;
+  showPage('chat');
+  document.getElementById('topbarTitle').textContent = agentName;
+  chatEl.innerHTML = '';
+  addMessage('ai', `Welcome! I'm the <strong>${agentName}</strong>. How can I help you today?<br><br>You can upload a CSV/JSON file or describe what you'd like to analyze.`, ['Analyze brand sentiment', 'Monitor media coverage', 'Generate PR report']);
+}
+
+function startChatFromPrompt() {
+  const input = document.getElementById('homePrompt');
+  if (!input.value.trim()) return;
+  startChat('PR Impact Agent');
+  setTimeout(() => {
+    addMessage('user', input.value.trim());
+    input.value = '';
+    simulateAgentResponse();
+  }, 300);
+}
+
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  if (!input.value.trim()) return;
+  addMessage('user', input.value.trim());
+  input.value = '';
+  simulateAgentResponse();
+}
+
+function handleChip(text) {
+  addMessage('user', text);
+  simulateAgentResponse();
+}
+
+function simulateAgentResponse() {
+  setTimeout(() => {
+    addMessage('ai', `I'll help you with that. First, let me collect a few details.<br><br><strong>Select your date range:</strong>`, ['Weekly', '10 Days', '20 Days', 'Custom']);
+  }, 600);
+}
+
+// ── Settings Tabs ───────────────────────────────────────────────────────────
+function showSettingsTab(tab) {
+  document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+  document.getElementById(tab + 'Section').classList.add('active');
+  document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function selectModel(card) {
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+}
+</script>
+</body>
+</html>
