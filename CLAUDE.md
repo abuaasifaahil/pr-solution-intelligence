@@ -31,8 +31,9 @@ Phase specs are large. Do not load them all into context. Follow this order:
 ## Current state
 
 - **Active phase:** Phase 1 — Foundation Core
-- **Active milestone:** M1 (not started) — Repo scaffold + Docker Compose
-- See `docs/phase1.md` for milestone breakdown.
+- **Active milestone:** M2 — Auth flow end-to-end
+- **Completed milestones:** M1 (repo scaffold + Docker Compose, merged to `main`)
+- See `docs/phase1.md` for milestone breakdown and `docs/plans/` for per-milestone plans.
 
 ## Reading the .docx specs
 
