@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { healthzRoute } from './routes/healthz.js';
+import { authRoutes } from './routes/auth.routes.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -15,6 +16,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   await app.register(cors, { origin: true, credentials: true });
   await app.register(healthzRoute);
+  await app.register(authRoutes);
 
   return app;
 }
