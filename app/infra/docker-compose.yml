@@ -1,0 +1,80 @@
+name: prsi-m1
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-prsi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prsi_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-prsi}
+    ports:
+      - '5432:5432'
+    volumes:
+      - prsi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-prsi} -d ${POSTGRES_DB:-prsi}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - prsi_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-prsi}:${POSTGRES_PASSWORD:-prsi_dev}@postgres:5432/${POSTGRES_DB:-prsi}?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3001/healthz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://api:3001
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/healthz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  prsi_pgdata:
+  prsi_redisdata:
