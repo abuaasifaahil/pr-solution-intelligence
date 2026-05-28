@@ -31,6 +31,32 @@ services:
       timeout: 3s
       retries: 10
 
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-prsi}:${POSTGRES_PASSWORD:-prsi_dev}@postgres:5432/${POSTGRES_DB:-prsi}?schema=public
+    working_dir: /repo/shared
+    command: ['node_modules/.bin/prisma', 'migrate', 'deploy', '--schema=db/schema.prisma']
+    restart: 'no'
+
+  seed:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-prsi}:${POSTGRES_PASSWORD:-prsi_dev}@postgres:5432/${POSTGRES_DB:-prsi}?schema=public
+    working_dir: /repo/shared
+    command: ['node_modules/.bin/tsx', 'db/seed.ts']
+    restart: 'no'
+
   api:
     build:
       context: ..
@@ -41,6 +67,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 3001
