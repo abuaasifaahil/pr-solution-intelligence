@@ -3,12 +3,11 @@ import { z } from 'zod';
 import { login, refresh, logout, getMe } from '../services/auth.service.js';
 import type { AccessPayload } from '../lib/jwt.js';
 
+// FastifyInstance.auth is declared in server.ts. Here we only augment
+// FastifyRequest with the user payload set by the auth middleware.
 declare module 'fastify' {
   interface FastifyRequest {
     user?: AccessPayload;
-  }
-  interface FastifyInstance {
-    auth: import('fastify').preHandlerAsyncHookHandler;
   }
 }
 

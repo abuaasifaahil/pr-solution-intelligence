@@ -30,6 +30,9 @@ export async function apiFetch<T = unknown>(
       return apiFetch<T>(path, init, { retryOn401: false });
     }
     useAuthStore.getState().clear();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.replace('/login');
+    }
   }
 
   const body = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();

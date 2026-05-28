@@ -122,3 +122,70 @@ describe('GET /api/v1/auth/me + DELETE /api/v1/auth/session', () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe('POST /api/v1/auth/refresh (integration)', () => {
+  let app: FastifyInstance;
+  let refreshToken: string;
+  let originalSessionId: string;
+
+  beforeAll(async () => {
+    app = await buildServer();
+    await app.ready();
+    await prisma.session.deleteMany({ where: { user: { email: TEST_EMAIL } } });
+    await prisma.user.deleteMany({ where: { email: TEST_EMAIL } });
+    await prisma.user.create({
+      data: {
+        email: TEST_EMAIL,
+        passwordHash: await hashPassword('hunter2'),
+        displayName: 'Login Tester',
+        role: 'analyst',
+      },
+    });
+    const loginRes = await app.inject({
+      method: 'POST', url: '/api/v1/auth/login',
+      payload: { email: TEST_EMAIL, password: 'hunter2' },
+    });
+    refreshToken = loginRes.json().data.refreshToken;
+    originalSessionId = loginRes.json().data.sessionId;
+  });
+
+  afterAll(async () => {
+    await prisma.session.deleteMany({ where: { user: { email: TEST_EMAIL } } });
+    await prisma.user.deleteMany({ where: { email: TEST_EMAIL } });
+    await app.close();
+  });
+
+  it('rotates tokens and invalidates the old session', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/auth/refresh',
+      payload: { refreshToken },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.accessToken).toBeTypeOf('string');
+    expect(body.data.refreshToken).toMatch(/^[0-9a-f]{64}$/);
+    expect(body.data.refreshToken).not.toBe(refreshToken);
+    expect(body.data.sessionId).not.toBe(originalSessionId);
+
+    // Old session must now be inactive.
+    const old = await prisma.session.findUnique({ where: { id: originalSessionId } });
+    expect(old?.isActive).toBe(false);
+  });
+
+  it('returns 401 on unknown refresh token', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/auth/refresh',
+      payload: { refreshToken: 'f'.repeat(64) },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 400 on malformed token shape', async () => {
+    const res = await app.inject({
+      method: 'POST', url: '/api/v1/auth/refresh',
+      payload: { refreshToken: 'too-short' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
