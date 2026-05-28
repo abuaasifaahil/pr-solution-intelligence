@@ -9,7 +9,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY shared/package.json shared/
 COPY backend/package.json backend/
 COPY frontend/package.json frontend/
-# tests/e2e/package.json will be added in Task 8
+COPY tests/e2e/package.json tests/e2e/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build

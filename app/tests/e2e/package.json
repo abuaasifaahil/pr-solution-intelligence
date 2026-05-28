@@ -1,0 +1,15 @@
+{
+  "name": "@prsi/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.47.2",
+    "@types/node": "20.16.5",
+    "typescript": "5.5.4"
+  }
+}
