@@ -1,5 +1,5 @@
 import { prisma } from '@prsi/shared/db';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '@prsi/shared/db';
 
 /**
  * Run a callback inside a transaction with the Postgres session var
