@@ -13,10 +13,10 @@
     "up": "docker compose -f infra/docker-compose.yml up -d --build",
     "down": "docker compose -f infra/docker-compose.yml down",
     "logs": "docker compose -f infra/docker-compose.yml logs -f",
-    "prisma:format": "pnpm --filter shared prisma format",
-    "prisma:generate": "pnpm --filter shared prisma generate",
-    "prisma:migrate": "pnpm --filter shared prisma migrate dev",
-    "prisma:seed": "pnpm --filter shared prisma db seed"
+    "prisma:format": "pnpm --filter @prsi/shared exec prisma format",
+    "prisma:generate": "pnpm --filter @prsi/shared exec prisma generate",
+    "prisma:migrate": "pnpm --filter @prsi/shared exec prisma migrate dev",
+    "prisma:seed": "pnpm --filter @prsi/shared exec prisma db seed"
   },
   "devDependencies": {
     "prettier": "3.3.3",
