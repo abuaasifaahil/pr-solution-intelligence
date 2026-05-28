@@ -31,8 +31,9 @@ Phase specs are large. Do not load them all into context. Follow this order:
 ## Current state
 
 - **Active phase:** Phase 1 — Foundation Core
-- **Active milestone:** M2 — Auth flow end-to-end
-- **Completed milestones:** M1 (repo scaffold + Docker Compose, merged to `main`)
+- **Active milestone:** M6 — Deploy + CI (Vercel + Render) — *pulled forward from end-of-phase per user decision to migrate off local Docker for primary dev*
+- **Completed milestones:** M1 (repo scaffold + Docker Compose), M2 (auth flow end-to-end) — both merged to `main`
+- **Remaining after M6:** M3 (chat creation), M4 (WebSocket + Orchestrator), M5 (settings tabs)
 - See `docs/phase1.md` for milestone breakdown and `docs/plans/` for per-milestone plans.
 
 ## Reading the .docx specs
