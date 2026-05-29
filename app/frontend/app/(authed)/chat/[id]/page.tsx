@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, use } from 'react';
+import { useEffect, useRef, useState, use } from 'react';
 import { Topbar } from '../../../../components/layout/Topbar';
 import { MessageThread } from '../../../../components/chat/MessageThread';
 import { ChatInput } from '../../../../components/chat/ChatInput';
@@ -8,27 +8,32 @@ import {
   type ChatDetail, type ChatMessage, type ChipDef,
 } from '../../../../lib/chats';
 import { ApiError } from '../../../../lib/api-client';
+import { useAuthStore } from '../../../../lib/auth-store';
+import { ChatStream } from '../../../../lib/chat-stream';
 import { useRouter } from 'next/navigation';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 interface PageProps { params: Promise<{ id: string }> }
 
 export default function ChatPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
+  const accessToken = useAuthStore((s) => s.accessToken);
+
   const [chat, setChat] = useState<ChatDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const streamRef = useRef<ChatStream | null>(null);
 
+  // Initial load.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const [c, m] = await Promise.all([getChat(id), listMessages(id)]);
-        if (!cancelled) {
-          setChat(c);
-          setMessages(m);
-        }
+        if (!cancelled) { setChat(c); setMessages(m); }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
           router.replace('/');
@@ -40,17 +45,63 @@ export default function ChatPage({ params }: PageProps) {
     return () => { cancelled = true; };
   }, [id, router]);
 
+  // Mount the WebSocket.
+  useEffect(() => {
+    if (!accessToken) return;
+    const cs = new ChatStream({ apiUrl: API_URL, chatId: id, accessToken });
+    streamRef.current = cs;
+
+    cs.onTyping((start) => setBusy(start));
+
+    cs.onChunk(({ assistantMessageId, delta }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMessageId
+            ? { ...m, content: m.content + delta }
+            : m,
+        ),
+      );
+    });
+
+    cs.onMessage(({ message }) => {
+      // Server is authoritative — replace the placeholder/streamed bubble.
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === message.id
+            ? { ...m, content: message.content, metadata: message.metadata }
+            : m,
+        ),
+      );
+    });
+
+    cs.onError(({ message }) => {
+      setError(message || 'Stream error.');
+      setBusy(false);
+    });
+
+    cs.open();
+    return () => { cs.close(); streamRef.current = null; };
+  }, [id, accessToken]);
+
   async function handleSend(content: string, choice?: string): Promise<void> {
     if (busy) return;
-    setBusy(true);
     setError(null);
     try {
       const out = await sendMessage(id, content, choice);
-      setMessages((prev) => [...prev, out.userMessage, out.aiMessage]);
+      // Append user bubble + empty placeholder assistant bubble keyed by assistantMessageId.
+      // Chips come back synchronously from the state machine.
+      const placeholder: ChatMessage = {
+        id: out.assistantMessageId,
+        chatId: id,
+        role: 'assistant',
+        content: '',
+        metadata: { chips: out.chips },
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, out.userMessage, placeholder]);
+      // busy will be set true by typing:start on the WS.
     } catch {
       setError('Message failed. Try again.');
-    } finally {
-      setBusy(false);
     }
   }
 
