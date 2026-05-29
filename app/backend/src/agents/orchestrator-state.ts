@@ -169,8 +169,12 @@ export function advance(
     }
 
     case 'awaiting_brand': {
-      const brand = (input.freeText ?? '').trim();
-      if (!brand) {
+      // Sanitize: strip control chars + newlines, cap at 80 chars so a user
+      // can't smuggle prompt-injection content into the LLM reply template.
+      // The unsanitized brand is still stored in contextPatch.brand for later
+      // use; only the LLM-facing template uses the sanitized form.
+      const rawBrand = (input.freeText ?? '').trim();
+      if (!rawBrand) {
         return {
           newState: 'awaiting_brand',
           contextPatch: {},
@@ -178,11 +182,13 @@ export function advance(
           chips: [],
         };
       }
+      // eslint-disable-next-line no-control-regex
+      const safeBrand = rawBrand.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 80);
       return {
         newState: 'awaiting_competitors',
-        contextPatch: { state: 'awaiting_competitors', brand },
+        contextPatch: { state: 'awaiting_competitors', brand: rawBrand },
         replyTemplate:
-          `Acknowledge ${brand} and ask which competitor preset to compare against. ` +
+          `Acknowledge "${safeBrand}" and ask which competitor preset to compare against. ` +
           `Two sentences.`,
         chips: COMPETITOR_CHIPS,
       };

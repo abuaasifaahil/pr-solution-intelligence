@@ -69,8 +69,11 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       );
       return { success: true, data: out };
     } catch (err) {
-      reply.code(404);
-      return { success: false, error: (err as Error).message };
+      const message = (err as Error).message;
+      // "Chat not found" is a 404; anything else (LLM down, DB error, etc.) is 500.
+      reply.code(message === 'Chat not found' ? 404 : 500);
+      req.log.error({ err }, 'POST /chats/:id/messages failed');
+      return { success: false, error: message };
     }
   });
 
@@ -80,8 +83,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const messages = await listMessages(req.user!.userId, id);
       return { success: true, data: { messages } };
     } catch (err) {
-      reply.code(404);
-      return { success: false, error: (err as Error).message };
+      const message = (err as Error).message;
+      reply.code(message === 'Chat not found' ? 404 : 500);
+      req.log.error({ err }, 'GET /chats/:id/messages failed');
+      return { success: false, error: message };
     }
   });
 }

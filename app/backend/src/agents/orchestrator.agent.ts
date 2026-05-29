@@ -32,6 +32,18 @@ interface PerceivedContext {
   agentType: string;
 }
 
+/**
+ * `Reasoned` carries both the advance input AND the state from perceive,
+ * so plan() doesn't need a side channel. The singleton OrchestratorAgent in
+ * the registry is shared across concurrent requests for the same agentType,
+ * so per-request state must flow through the lifecycle methods rather than
+ * being stashed on `this`.
+ */
+interface Reasoned {
+  advanceInput: AdvanceInput;
+  state: ConversationState;
+}
+
 interface PlanItem {
   advanceInput: AdvanceInput;
   agentType: string;
@@ -41,9 +53,6 @@ interface PlanItem {
 interface ActOutput extends OrchestratorResult { /* same */ }
 
 export class OrchestratorAgent extends BaseAgent {
-  /** Set by execute(); read by plan(). */
-  private _currentState: ConversationState = INITIAL_STATE;
-
   async perceive(input: AgentInput): Promise<PerceivedContext> {
     const o = input as OrchestratorInput;
     const state = o.metadata?.currentState ?? INITIAL_STATE;
@@ -57,10 +66,10 @@ export class OrchestratorAgent extends BaseAgent {
     };
   }
 
-  async reason(ctx: unknown): Promise<AdvanceInput> {
+  async reason(ctx: unknown): Promise<Reasoned> {
     const p = ctx as PerceivedContext;
     // If a chip click came in, use it directly.
-    if (p.choice) return { choice: p.choice };
+    if (p.choice) return { advanceInput: { choice: p.choice }, state: p.state };
     // Otherwise try to extract a choice from free text via the LLM for states with chips.
     const chipOptionsByState: Partial<Record<ConversationState, string[]>> = {
       awaiting_date: ['weekly', '10days', '20days', 'custom'],
@@ -71,15 +80,14 @@ export class OrchestratorAgent extends BaseAgent {
     const options = chipOptionsByState[p.state];
     if (options) {
       const parsed = await parseChoice(p.message, options);
-      if (parsed) return { choice: parsed };
+      if (parsed) return { advanceInput: { choice: parsed }, state: p.state };
     }
-    return { freeText: p.message };
+    return { advanceInput: { freeText: p.message }, state: p.state };
   }
 
   async plan(goal: unknown): Promise<PlanItem> {
-    // Carry the advance input + agent context into act().
-    const advanceInput = goal as AdvanceInput;
-    return { advanceInput, agentType: this.type, state: this._currentState };
+    const { advanceInput, state } = goal as Reasoned;
+    return { advanceInput, agentType: this.type, state };
   }
 
   async act(plan: unknown): Promise<ActOutput> {
@@ -102,12 +110,6 @@ export class OrchestratorAgent extends BaseAgent {
 
   async reflect(_result: unknown): Promise<void> {
     // No-op for M3. M5 Learning Agent will populate this.
-  }
-
-  override async execute<T = unknown>(input: AgentInput): Promise<T> {
-    const o = input as OrchestratorInput;
-    this._currentState = o.metadata?.currentState ?? INITIAL_STATE;
-    return super.execute<T>(input);
   }
 }
 
