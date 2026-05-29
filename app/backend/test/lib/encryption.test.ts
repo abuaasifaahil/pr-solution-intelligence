@@ -27,7 +27,7 @@ describe('encryption', () => {
 
   it('rejects tampered ciphertext', () => {
     const cipher = encrypt('secret');
-    const [iv, tag, ct] = cipher.split(':');
+    const [iv, tag, ct] = cipher.split(':') as [string, string, string];
     // Flip the last byte of ciphertext.
     const flipped = ct.slice(0, -2) + (ct.slice(-2) === 'ff' ? '00' : 'ff');
     const tampered = `${iv}:${tag}:${flipped}`;
