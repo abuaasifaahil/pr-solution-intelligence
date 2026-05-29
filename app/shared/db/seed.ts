@@ -51,9 +51,12 @@ const defaultAgents = [
   },
 ] as const;
 
-const testUsers = [
-  { email: 'user-a@test.local', displayName: 'Alice (test)', role: 'analyst' as const },
-  { email: 'user-b@test.local', displayName: 'Bob (test)',   role: 'analyst' as const },
+// Each user gets its own password — admin/prod users must not share the shared
+// test password. Hashing happens per-user inside the seed loop.
+const seedUsers = [
+  { email: 'user-a@test.local',           password: 'Password123!', displayName: 'Alice (test)', role: 'analyst' as const },
+  { email: 'user-b@test.local',           password: 'Password123!', displayName: 'Bob (test)',   role: 'analyst' as const },
+  { email: 'khadar.syed@infovision.com',  password: 'Admin@123123', displayName: 'Khadar Syed',  role: 'admin'   as const },
 ] as const;
 
 async function main(): Promise<void> {
@@ -72,22 +75,22 @@ async function main(): Promise<void> {
   // FORCE. Temporarily lift FORCE on `users` for the duration of the seed,
   // run the upserts, then restore FORCE. The seed connection user must be the
   // table owner (it is — Prisma migrate ran as this user).
-  console.log(`Seeding ${testUsers.length} test users...`);
-  const hash = await bcrypt.hash('Password123!', 12);
+  console.log(`Seeding ${seedUsers.length} users...`);
   await prisma.$executeRawUnsafe('ALTER TABLE users NO FORCE ROW LEVEL SECURITY');
   try {
-    for (const user of testUsers) {
+    for (const user of seedUsers) {
+      const hash = await bcrypt.hash(user.password, 12);
       const upserted = await prisma.user.upsert({
         where: { email: user.email },
         update: { displayName: user.displayName, passwordHash: hash, role: user.role, isActive: true },
         create: { email: user.email, passwordHash: hash, displayName: user.displayName, role: user.role },
       });
-      console.log(`  ✓ ${user.email} → id=${upserted.id}`);
+      console.log(`  ✓ ${user.email} (${user.role}) → id=${upserted.id}`);
     }
   } finally {
     await prisma.$executeRawUnsafe('ALTER TABLE users FORCE ROW LEVEL SECURITY');
   }
-  console.log(`✓ Seeded ${testUsers.length} test users (password: Password123!)`);
+  console.log(`✓ Seeded ${seedUsers.length} users`);
 }
 
 main()
