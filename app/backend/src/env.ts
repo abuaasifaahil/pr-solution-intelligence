@@ -10,8 +10,12 @@ const EnvSchema = z.object({
   JWT_PUBLIC_KEY: z.string().min(100).transform((s) => s.replace(/\\n/g, '\n')),
   JWT_ACCESS_TTL: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL: z.coerce.number().int().positive().default(604800),
-  // Comma-separated list of allowed origins; '*' means allow all (dev only).
   CORS_ALLOWED_ORIGIN: z.string().default('*'),
+  // Azure OpenAI (M3). Required for OrchestratorAgent.
+  AZURE_OPENAI_ENDPOINT: z.string().url(),
+  AZURE_OPENAI_API_KEY: z.string().min(20),
+  AZURE_OPENAI_API_VERSION: z.string().default('2025-03-01-preview'),
+  AZURE_OPENAI_DEPLOYMENT: z.string().default('gpt-4.1'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
