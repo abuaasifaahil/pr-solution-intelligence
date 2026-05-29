@@ -8,7 +8,8 @@ import {
   type Chip,
   type AdvanceInput,
 } from './orchestrator-state.js';
-import { chatComplete, parseChoice } from '../lib/llm.js';
+import { chatComplete, chatCompleteStream, parseChoice } from '../lib/llm.js';
+import { publishChatEvent } from '../lib/event-bus.js';
 
 interface OrchestratorInput extends AgentInput {
   metadata?: {
@@ -110,6 +111,94 @@ export class OrchestratorAgent extends BaseAgent {
 
   async reflect(_result: unknown): Promise<void> {
     // No-op for M3. M5 Learning Agent will populate this.
+  }
+
+  /**
+   * Streaming variant of act(): runs the same state-machine `advance()`, then
+   * streams the LLM phrasing via `chatCompleteStream` and publishes each delta
+   * to the chat's Redis channel as `message:chunk`. After the stream ends,
+   * publishes `typing:stop` and returns the accumulated reply + chips +
+   * context patch so the caller can persist the final assistant message.
+   *
+   * `chatId` and `assistantMessageId` are required so chunks can be routed
+   * to the right placeholder bubble on the frontend.
+   */
+  async actStreaming(
+    plan: { advanceInput: AdvanceInput; agentType: string; state: ConversationState },
+    chatId: string,
+    assistantMessageId: string,
+  ): Promise<OrchestratorResult> {
+    const { advanceInput, agentType, state } = plan;
+    const r = advance(state, advanceInput, agentType);
+    const phrasingSystemPrompt =
+      `You are ${this.name}, a specialized AI for PR/media analysis. ` +
+      `Reply in a friendly, professional tone. Keep replies under 2 sentences unless summarizing. ` +
+      `Do not use markdown formatting.`;
+
+    let full = '';
+    try {
+      for await (const delta of chatCompleteStream({
+        system: phrasingSystemPrompt,
+        messages: [{ role: 'user', content: r.replyTemplate }],
+      })) {
+        full += delta;
+        await publishChatEvent(chatId, 'message:chunk', {
+          assistantMessageId,
+          delta,
+        });
+      }
+      await publishChatEvent(chatId, 'typing:stop', { assistantMessageId });
+    } catch (err) {
+      await publishChatEvent(chatId, 'error', {
+        assistantMessageId,
+        message: (err as Error).message,
+      });
+      throw err;
+    }
+
+    return {
+      replyText: full.trim(),
+      chips: r.chips,
+      contextPatch: r.contextPatch,
+    };
+  }
+
+  /**
+   * Streaming entry point. Mirrors `execute()` but routes through `actStreaming`.
+   * Required extras on `input`: `chatId` and `assistantMessageId`.
+   */
+  async executeStreaming(input: AgentInput & {
+    chatId: string;
+    assistantMessageId: string;
+  }): Promise<OrchestratorResult> {
+    const start = Date.now();
+    try {
+      const ctx = await this.perceive(input);
+      const goal = (await this.reason(ctx)) as {
+        advanceInput: AdvanceInput;
+        state: ConversationState;
+      };
+      const plan = await this.plan(goal);
+      const result = await this.actStreaming(
+        plan as { advanceInput: AdvanceInput; agentType: string; state: ConversationState },
+        input.chatId,
+        input.assistantMessageId,
+      );
+      await this.reflect(result);
+      await this.learn(result);
+      const duration = Date.now() - start;
+      await this.logAction('execute_streaming', input, result, duration);
+      return result;
+    } catch (err) {
+      const duration = Date.now() - start;
+      await this.logAction(
+        'execute_streaming_failed',
+        input,
+        { error: (err as Error).message },
+        duration,
+      );
+      throw err;
+    }
   }
 }
 
