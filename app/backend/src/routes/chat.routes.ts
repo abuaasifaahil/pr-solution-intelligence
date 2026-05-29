@@ -1,12 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
-  createChat, listChats, getChat, deleteChat,
+  createChat, listChats, getChat, deleteChat, appendUserMessage, listMessages,
 } from '../services/chat.service.js';
 
 const CreateChatBody = z.object({
   agentType: z.string().min(1).max(50),
   title: z.string().max(255).optional(),
+});
+
+const SendMessageBody = z.object({
+  content: z.string().min(1).max(4000),
+  choice: z.string().max(100).optional(),
 });
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
@@ -45,6 +50,35 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     try {
       await deleteChat(req.user!.userId, id);
       return { success: true, data: { message: 'Deleted' } };
+    } catch (err) {
+      reply.code(404);
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  app.post('/api/v1/chats/:id/messages', { preHandler: app.auth }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = SendMessageBody.safeParse(req.body);
+    if (!parsed.success) {
+      reply.code(400);
+      return { success: false, error: 'Invalid body' };
+    }
+    try {
+      const out = await appendUserMessage(
+        req.user!.userId, id, parsed.data.content, parsed.data.choice,
+      );
+      return { success: true, data: out };
+    } catch (err) {
+      reply.code(404);
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  app.get('/api/v1/chats/:id/messages', { preHandler: app.auth }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    try {
+      const messages = await listMessages(req.user!.userId, id);
+      return { success: true, data: { messages } };
     } catch (err) {
       reply.code(404);
       return { success: false, error: (err as Error).message };
