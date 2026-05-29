@@ -40,7 +40,7 @@ export function decrypt(payload: string): string {
   if (parts.length !== 3) {
     throw new Error('Malformed ciphertext: expected iv:tag:ct');
   }
-  const [ivHex, tagHex, ctHex] = parts;
+  const [ivHex, tagHex, ctHex] = parts as [string, string, string];
   const iv = Buffer.from(ivHex, 'hex');
   const tag = Buffer.from(tagHex, 'hex');
   const ct = Buffer.from(ctHex, 'hex');
