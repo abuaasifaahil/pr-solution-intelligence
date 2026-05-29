@@ -1,9 +1,11 @@
 import Fastify, { type FastifyInstance, type preHandlerAsyncHookHandler } from 'fastify';
 import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
 import { healthzRoute } from './routes/healthz.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
+import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { AgentRegistry } from './agents/agent-registry.js';
@@ -41,12 +43,16 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
 
   await app.register(cors, { origin: corsOriginConfig(), credentials: true });
+  await app.register(websocket, {
+    options: { maxPayload: 1024 * 1024 /* 1MB */ },
+  });
   app.decorate('auth', authMiddleware);
   await bootstrapAgents();
   await app.register(healthzRoute);
   await app.register(authRoutes);
   await app.register(agentRoutes);
   await app.register(chatRoutes);
+  await app.register(wsRoutes);
 
   return app;
 }
