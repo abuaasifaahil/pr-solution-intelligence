@@ -1,44 +1,47 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../lib/auth-store';
 import { greetingFor } from '../../lib/greeting';
-import { apiFetch } from '../../lib/api-client';
-import { useRouter } from 'next/navigation';
+import { Topbar } from '../../components/layout/Topbar';
+import { AgentCard } from '../../components/home/AgentCard';
+import { listAgents, type AgentSummary } from '../../lib/chats';
 
 export default function HomePage() {
-  const router = useRouter();
-  const { user, clear } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  async function handleLogout(): Promise<void> {
-    try { await apiFetch('/api/v1/auth/session', { method: 'DELETE' }); } catch { /* */ }
-    clear();
-    router.replace('/login');
-  }
+  useEffect(() => {
+    listAgents()
+      .then((a) => { setAgents(a); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
   return (
-    <main className="min-h-screen p-12 max-w-4xl mx-auto">
-      <div className="flex items-start justify-between mb-12">
-        <div>
+    <>
+      <Topbar title="Home" badge="Online" />
+      <main className="flex-1 overflow-y-auto p-12">
+        <div className="max-w-5xl mx-auto">
           <h1 className="text-3xl font-bold mb-2 text-text-primary">
             {greetingFor()}, <span className="text-win-blue-500">{user?.displayName ?? 'there'}</span>
           </h1>
-          <p className="text-text-secondary">
-            M2 — Auth flow online. The full home page with 5 agent cards arrives in M3.
+          <p className="text-text-secondary mb-10">
+            Pick an agent below to start a new analysis.
           </p>
+
+          {loading ? (
+            <div className="text-text-tertiary">Loading agents…</div>
+          ) : agents.length === 0 ? (
+            <div className="text-text-tertiary">No agents available.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {agents.map((a) => (
+                <AgentCard key={a.id} agent={a} />
+              ))}
+            </div>
+          )}
         </div>
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 text-sm font-medium rounded-md border border-border-default
-                     hover:bg-surface-hover text-text-primary transition"
-        >
-          Sign out
-        </button>
-      </div>
-      <div className="card">
-        <p className="text-sm text-text-secondary">
-          Signed in as <code className="font-mono bg-win-blue-50 px-1.5 py-0.5 rounded-sm">{user?.email}</code>{' '}
-          (role: {user?.role}).
-        </p>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
