@@ -5,6 +5,7 @@ RUN corepack enable && corepack prepare pnpm@11.4.0 --activate
 WORKDIR /repo
 
 FROM base AS deps
+RUN apk add --no-cache python3 make g++
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY shared/package.json shared/
 COPY backend/package.json backend/
