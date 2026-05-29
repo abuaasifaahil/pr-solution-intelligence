@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, use } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Topbar } from '../../../../components/layout/Topbar';
 import { MessageThread } from '../../../../components/chat/MessageThread';
 import { ChatInput } from '../../../../components/chat/ChatInput';
@@ -14,10 +14,12 @@ import { useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-interface PageProps { params: Promise<{ id: string }> }
+// Next 14 passes `params` as a plain object. (Next 15 changed it to a Promise
+// that needs `use()` — DO NOT switch to that pattern until the Next 15 upgrade.)
+interface PageProps { params: { id: string } }
 
 export default function ChatPage({ params }: PageProps) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
   const accessToken = useAuthStore((s) => s.accessToken);
 
