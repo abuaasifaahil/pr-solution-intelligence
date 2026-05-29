@@ -1,0 +1,15 @@
+-- The `users` table needs pre-auth SELECT lookups (for the login endpoint
+-- where the requester is not yet authenticated and `app.user_id` is not set).
+-- With FORCE ROW LEVEL SECURITY, even the table owner cannot bypass policies,
+-- so the email lookup fails and login returns 401 for every credential.
+--
+-- Dropping FORCE on `users` only lets the table owner (the app's Postgres
+-- connection user) perform the pre-auth lookup. Application code remains
+-- responsible for not leaking other users' rows via response shape (login
+-- returns only "Invalid credentials" on any wrong-credentials path, not the
+-- raw row).
+--
+-- Other RLS-protected tables (chats, data_sources, mcp_connections, llm_configs)
+-- keep FORCE because they are always accessed via the `withUser` helper which
+-- sets `app.user_id` from the authenticated request context.
+ALTER TABLE users NO FORCE ROW LEVEL SECURITY;
