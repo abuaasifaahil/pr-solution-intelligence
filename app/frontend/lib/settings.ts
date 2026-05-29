@@ -109,3 +109,35 @@ export async function deleteMCP(id: string): Promise<void> {
 export async function verifyMCP(id: string): Promise<MCPVerifyResult> {
   return apiFetch<MCPVerifyResult>(`/api/v1/mcp/${id}/verify`, { method: 'POST' });
 }
+
+// ─── Model config ──────────────────────────────────────────────────────
+
+export type LLMProvider = 'claude' | 'gpt' | 'ollama' | 'perplexity';
+
+export interface ModelConfig {
+  id: string;
+  userId: string;
+  provider: LLMProvider;
+  modelName: string;
+  apiKeyEncrypted: '***encrypted***' | null;
+  maxTokens: number;
+  temperature: number;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export async function getModelConfig(): Promise<ModelConfig | null> {
+  return apiFetch<{ config: ModelConfig | null }>('/api/v1/settings/model').then((d) => d.config);
+}
+
+export async function saveModelConfig(input: {
+  provider: LLMProvider;
+  modelName: string;
+  apiKey?: string;
+  maxTokens: number;
+  temperature: number;
+}): Promise<ModelConfig> {
+  return apiFetch<{ config: ModelConfig }>('/api/v1/settings/model', {
+    method: 'POST', body: JSON.stringify(input),
+  }).then((d) => d.config);
+}
