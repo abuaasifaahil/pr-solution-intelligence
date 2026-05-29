@@ -35,8 +35,8 @@ See `00-overview.md` for the full table. Headline:
 - **M1** Repo scaffold + Docker Compose
 - **M2** Auth flow end-to-end
 - **M3** Chat creation + REST messaging
-- **M4** WebSocket + OrchestratorAgent
-- **M5** Settings module (5 tabs)
+- **M4** WebSocket + OrchestratorAgent — ✓ done
+- **M5** Settings module (5 tabs) — *active*
 - **M6** Deploy + CI
 
 User drives transitions: each milestone ends with a manual demo and explicit approval.
@@ -76,7 +76,15 @@ All prefixed `/api/v1/`. Response envelope: `{ success: boolean, data: T, error?
 
 Total: 4 + 7 + 3 + 5 + 5 + 2 + 3 = **29** route handlers. Spec says "22 endpoints" — discrepancy explained: spec counts route paths (some paths share GET+POST in one row). Either count is fine; what matters is full coverage.
 
-**WebSocket:** `ws://host/ws/chat/:chatId` · JWT in query param · events: `message:new`, `message:chunk`, `typing:start`, `typing:stop`, `agent:progress`, `error`.
+**WebSocket:** `ws://host/ws/chat/:chatId?token=<accessJWT>` (M4 — `@fastify/websocket@10`). Frame format: newline-delimited JSON `{type, payload}`. Events shipped:
+- `typing:start` — payload `{ assistantMessageId }`
+- `typing:stop` — payload `{ assistantMessageId }`
+- `message:chunk` — payload `{ assistantMessageId, delta: string }` (Azure OpenAI token delta)
+- `message:new` — payload `{ message: { id, chatId, role, content, metadata: { chips } } }` (canonical persisted record after stream completes)
+- `error` — payload `{ assistantMessageId?, message: string }`
+- `agent:progress` — reserved for Phase 3 enrichment; not emitted in Phase 1
+
+Tradeoff accepted: query-param JWT is required because browser `WebSocket` cannot set custom headers. JWTs are 15-min TTL; Fastify request log redacts the `?token=…` value. Pub/sub channel: `chat:{chatId}:events` on Redis (ioredis duplicate connection per subscriber, per ioredis docs).
 
 ## Agent framework
 

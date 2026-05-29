@@ -31,9 +31,9 @@ Phase specs are large. Do not load them all into context. Follow this order:
 ## Current state
 
 - **Active phase:** Phase 1 — Foundation Core
-- **Active milestone:** M4 — WebSocket + OrchestratorAgent streaming *(M3 chat + REST messaging complete)*
-- **Completed milestones:** M1 (repo scaffold), M2 (auth flow), M6 (deploy: Vercel + Render), M3 (chat creation + REST messaging)
-- **Remaining:** M4 (WebSocket streaming), M5 (settings tabs)
+- **Active milestone:** M5 — Settings tabs *(M4 WebSocket streaming complete)*
+- **Completed milestones:** M1 (repo scaffold), M2 (auth flow), M6 (deploy: Vercel + Render), M3 (chat creation + REST messaging), M4 (WebSocket + OrchestratorAgent streaming)
+- **Remaining:** M5 (settings tabs)
 - See `docs/phase1.md` for milestone breakdown and `docs/plans/` for per-milestone plans.
 
 ### Live deploy URLs
