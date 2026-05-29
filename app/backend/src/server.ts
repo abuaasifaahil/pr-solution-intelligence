@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { healthzRoute } from './routes/healthz.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
+import { chatRoutes } from './routes/chat.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { AgentRegistry } from './agents/agent-registry.js';
@@ -45,6 +46,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(healthzRoute);
   await app.register(authRoutes);
   await app.register(agentRoutes);
+  await app.register(chatRoutes);
 
   return app;
 }
