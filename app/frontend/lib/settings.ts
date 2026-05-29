@@ -141,3 +141,31 @@ export async function saveModelConfig(input: {
     method: 'POST', body: JSON.stringify(input),
   }).then((d) => d.config);
 }
+
+// ─── Skills ────────────────────────────────────────────────────────────
+
+export interface SkillView {
+  skillId: string;
+  name: string;
+  description: string;
+  type: string;
+  isDefault: boolean;
+  isEnabled: boolean;
+}
+
+export async function listSkills(): Promise<SkillView[]> {
+  return apiFetch<{ skills: SkillView[] }>('/api/v1/settings/skills')
+    .then((d) => d.skills);
+}
+export async function createSkill(input: {
+  name: string; description: string; type: string;
+}): Promise<SkillView> {
+  return apiFetch<{ skill: SkillView }>('/api/v1/settings/skills', {
+    method: 'POST', body: JSON.stringify(input),
+  }).then((d) => d.skill);
+}
+export async function toggleSkill(skillId: string, isEnabled: boolean): Promise<SkillView> {
+  return apiFetch<{ skill: SkillView }>(`/api/v1/settings/skills/${skillId}`, {
+    method: 'PATCH', body: JSON.stringify({ isEnabled }),
+  }).then((d) => d.skill);
+}

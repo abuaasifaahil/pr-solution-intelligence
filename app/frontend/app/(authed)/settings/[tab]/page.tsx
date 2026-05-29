@@ -3,6 +3,7 @@ import { SettingsTabs } from '../../../../components/settings/SettingsTabs';
 import { DataSourcesTab } from '../../../../components/settings/DataSourcesTab';
 import { MCPTab } from '../../../../components/settings/MCPTab';
 import { ModelTab } from '../../../../components/settings/ModelTab';
+import { SkillsTab } from '../../../../components/settings/SkillsTab';
 
 const KNOWN = ['data-sources', 'mcp', 'model', 'skills', 'agents'] as const;
 type Tab = (typeof KNOWN)[number];
@@ -16,7 +17,8 @@ export default function SettingsTabPage({ params }: { params: { tab: string } })
       {tab === 'data-sources' && <DataSourcesTab />}
       {tab === 'mcp' && <MCPTab />}
       {tab === 'model' && <ModelTab />}
-      {/* Skills + Agents filled in by M5.10 / M5.11 */}
+      {tab === 'skills' && <SkillsTab />}
+      {/* Agents filled in by M5.11 */}
     </div>
   );
 }
