@@ -8,6 +8,7 @@ import { chatRoutes } from './routes/chat.routes.js';
 import { dataSourceRoutes } from './routes/data-source.routes.js';
 import { mcpRoutes } from './routes/mcp.routes.js';
 import { modelConfigRoutes } from './routes/model-config.routes.js';
+import { skillRoutes } from './routes/skill.routes.js';
 import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
@@ -58,6 +59,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(dataSourceRoutes);
   await app.register(mcpRoutes);
   await app.register(modelConfigRoutes);
+  await app.register(skillRoutes);
   await app.register(wsRoutes);
 
   return app;
