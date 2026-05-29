@@ -75,20 +75,21 @@ async function main(): Promise<void> {
   // FORCE. Temporarily lift FORCE on `users` for the duration of the seed,
   // run the upserts, then restore FORCE. The seed connection user must be the
   // table owner (it is — Prisma migrate ran as this user).
-  console.log(`Seeding ${seedUsers.length} users...`);
+  // The `users` table is set to NO FORCE ROW LEVEL SECURITY by the
+  // users_no_force_rls migration (M6) so pre-auth login lookup can read it as
+  // the table owner. Re-assert NO FORCE here in case a prior seed run (or
+  // anything else) left FORCE on — without this, login silently 401s on every
+  // existing user. Idempotent.
   await prisma.$executeRawUnsafe('ALTER TABLE users NO FORCE ROW LEVEL SECURITY');
-  try {
-    for (const user of seedUsers) {
-      const hash = await bcrypt.hash(user.password, 12);
-      const upserted = await prisma.user.upsert({
-        where: { email: user.email },
-        update: { displayName: user.displayName, passwordHash: hash, role: user.role, isActive: true },
-        create: { email: user.email, passwordHash: hash, displayName: user.displayName, role: user.role },
-      });
-      console.log(`  ✓ ${user.email} (${user.role}) → id=${upserted.id}`);
-    }
-  } finally {
-    await prisma.$executeRawUnsafe('ALTER TABLE users FORCE ROW LEVEL SECURITY');
+  console.log(`Seeding ${seedUsers.length} users...`);
+  for (const user of seedUsers) {
+    const hash = await bcrypt.hash(user.password, 12);
+    const upserted = await prisma.user.upsert({
+      where: { email: user.email },
+      update: { displayName: user.displayName, passwordHash: hash, role: user.role, isActive: true },
+      create: { email: user.email, passwordHash: hash, displayName: user.displayName, role: user.role },
+    });
+    console.log(`  ✓ ${user.email} (${user.role}) → id=${upserted.id}`);
   }
   console.log(`✓ Seeded ${seedUsers.length} users`);
 }
