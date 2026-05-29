@@ -1,18 +1,20 @@
 # M6 Deploy Operations Runbook
 
-## Service URLs (fill in after first deploy)
+## Service URLs (live — deployed 2026-05-29)
 
-| Service | URL | Plan |
+| Service | URL / ID | Plan |
 |---|---|---|
-| Frontend (Vercel) | https://<your-project>.vercel.app | Free |
-| Backend (Render Web) | https://prsi-api.onrender.com | Free |
-| Postgres (Render) | internal connection string only | Free |
-| Key Value / Redis (Render) | internal connection string only | Free |
-| GitHub repo | <user-provided URL> | — |
+| Frontend (Vercel) | https://pr-solutions.vercel.app | Hobby (free) |
+| Backend (Render Web) | https://prsi-api.onrender.com | Free web service |
+| Postgres (Render) | `dpg-d8cfmna8qa3s73bhqo50-a` (internal only) | Free **— expires 2026-06-28** |
+| Key Value / Redis (Render) | `red-d8cfmngg4nts738m05ug` (internal only) | Free 25 MB |
+| GitHub repo | https://github.com/abuaasifaahil/pr-solution-intelligence | Private |
+| Vercel project id | `prj_7SoRSyR3afc4BjPDTSrsU266ANy3` | — |
+| Render web service id | `srv-d8cftafavr4c73ec362g` | — |
 
-## ⚠ Critical: Render free Postgres expires after ~90 days
+## ⚠ Critical: Render free Postgres expires **2026-06-28** (30 days from creation, NOT 90)
 
-The free Postgres instance is **deleted automatically** after ~90 days of creation. Migration options:
+The free Postgres instance is **deleted automatically** on the expiry date. Render's current free Postgres lifecycle is 30 days (older docs said 90 — they've shortened it). Migration options:
 
 1. **Upgrade to Starter Postgres in Render dashboard ($7/mo)** before the expiry — recommended for any data you care about.
 2. **Migrate to Neon (https://neon.tech)** — free 0.5 GB persistent Postgres. Export with `pg_dump`, import to Neon, update `DATABASE_URL` in Render web service env.
