@@ -60,3 +60,52 @@ export async function testDataSource(id: string): Promise<DataSourceTestResult> 
     method: 'POST',
   });
 }
+
+// ─── MCP ───────────────────────────────────────────────────────────────
+
+export type MCPStatus = 'active' | 'inactive' | 'error';
+
+export interface MCPConnection {
+  id: string;
+  userId: string;
+  sourceName: string;
+  serverUrl: string;
+  tokenEncrypted: '***encrypted***';
+  status: MCPStatus;
+  lastVerifiedAt: string | null;
+  availableTools: unknown[];
+  createdAt: string;
+}
+
+export interface MCPVerifyResult {
+  status: MCPStatus;
+  latencyMs: number;
+  httpStatus?: number;
+  message: string;
+  availableTools: unknown[];
+}
+
+export async function listMCP(): Promise<MCPConnection[]> {
+  return apiFetch<{ connections: MCPConnection[] }>('/api/v1/mcp')
+    .then((d) => d.connections);
+}
+export async function createMCP(input: {
+  sourceName: string; serverUrl: string; token: string;
+}): Promise<MCPConnection> {
+  return apiFetch<{ connection: MCPConnection }>('/api/v1/mcp', {
+    method: 'POST', body: JSON.stringify(input),
+  }).then((d) => d.connection);
+}
+export async function updateMCP(
+  id: string, patch: { sourceName?: string; serverUrl?: string; token?: string },
+): Promise<MCPConnection> {
+  return apiFetch<{ connection: MCPConnection }>(`/api/v1/mcp/${id}`, {
+    method: 'PATCH', body: JSON.stringify(patch),
+  }).then((d) => d.connection);
+}
+export async function deleteMCP(id: string): Promise<void> {
+  await apiFetch(`/api/v1/mcp/${id}`, { method: 'DELETE' });
+}
+export async function verifyMCP(id: string): Promise<MCPVerifyResult> {
+  return apiFetch<MCPVerifyResult>(`/api/v1/mcp/${id}/verify`, { method: 'POST' });
+}
