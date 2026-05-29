@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "test": "echo \"(no FE tests yet — added in M2)\" && exit 0",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -23,8 +23,10 @@
     "@types/react": "18.3.5",
     "@types/react-dom": "18.3.0",
     "autoprefixer": "10.4.20",
+    "jsdom": "24.1.1",
     "postcss": "8.4.47",
     "tailwindcss": "3.4.13",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "1.6.1"
   }
 }
