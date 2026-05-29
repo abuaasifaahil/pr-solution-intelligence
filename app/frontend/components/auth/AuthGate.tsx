@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '../../lib/auth-store';
+import { useAuthStore, useHasAuthHydrated } from '../../lib/auth-store';
 import { apiFetch, ApiError } from '../../lib/api-client';
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { user, accessToken, hasHydrated, setAuth, clear } = useAuthStore();
+  const { user, accessToken, setAuth, clear } = useAuthStore();
+  const hasHydrated = useHasAuthHydrated();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
