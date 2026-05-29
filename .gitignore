@@ -49,3 +49,4 @@ data/local/
 
 # Claude Code state (per-machine)
 .claude/settings.local.json
+.secrets/
