@@ -5,6 +5,7 @@ import { healthzRoute } from './routes/healthz.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
+import { dataSourceRoutes } from './routes/data-source.routes.js';
 import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
@@ -52,6 +53,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(authRoutes);
   await app.register(agentRoutes);
   await app.register(chatRoutes);
+  await app.register(dataSourceRoutes);
   await app.register(wsRoutes);
 
   return app;
