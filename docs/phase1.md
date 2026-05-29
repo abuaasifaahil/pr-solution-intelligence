@@ -36,8 +36,10 @@ See `00-overview.md` for the full table. Headline:
 - **M2** Auth flow end-to-end
 - **M3** Chat creation + REST messaging
 - **M4** WebSocket + OrchestratorAgent — ✓ done
-- **M5** Settings module (5 tabs) — *active*
-- **M6** Deploy + CI
+- **M5** Settings module (5 tabs) — ✓ done
+- **M6** Deploy + CI — ✓ done
+
+**Phase 1 is shipped.**
 
 User drives transitions: each milestone ends with a manual demo and explicit approval.
 
@@ -98,6 +100,30 @@ Tradeoff accepted: query-param JWT is required because browser `WebSocket` canno
 - `reflect`: validate WS delivery; log success/failure
 
 Phase 2 expands `reason` and `plan` to route to `DataExtractAgent`.
+
+## M5 Settings endpoints (shipped)
+
+15 new route handlers under `/api/v1/`:
+
+| Method | Path | Notes |
+|---|---|---|
+| GET    | `/data-sources`            | List user's data sources, api_key masked |
+| POST   | `/data-sources`            | Create with encrypted api_key |
+| PATCH  | `/data-sources/:id`        | Update (re-encrypt if apiKey present) |
+| DELETE | `/data-sources/:id`        | Hard delete |
+| POST   | `/data-sources/:id/test`   | Probe per-type health URL (decrypted key in header only) |
+| GET    | `/mcp`                     | List user's MCP connections, token masked |
+| POST   | `/mcp`                     | Create with encrypted token |
+| PATCH  | `/mcp/:id`                 | Update (re-encrypt if token present) |
+| DELETE | `/mcp/:id`                 | Hard delete |
+| POST   | `/mcp/:id/verify`          | Probe server URL with Bearer; persist status + tools |
+| GET    | `/settings/model`          | Return user's default LLMConfig (masked) or null |
+| POST   | `/settings/model`          | Upsert default; clears is_default on other rows |
+| GET    | `/settings/skills`         | Skills × user_skills join; defaults always isEnabled=true |
+| POST   | `/settings/skills`         | Create custom skill (isDefault=false); auto-link user_skills |
+| PATCH  | `/settings/skills/:id`     | Toggle user_skills.isEnabled (rejects default skills) |
+
+Encryption: AES-256-GCM in `app/backend/src/lib/encryption.ts`, key from `ENCRYPTION_KEY` env (32-byte hex). Format: `iv_hex:tag_hex:ct_hex`. Plaintext secrets NEVER appear in API responses (masked `***encrypted***`) and NEVER appear in error messages from test/verify probes.
 
 ## Contracts exposed to Phase 2+
 
