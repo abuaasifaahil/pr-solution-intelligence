@@ -1,0 +1,60 @@
+# Render Blueprint for PR Solution Intelligence
+# https://render.com/docs/blueprint-spec
+#
+# Usage:
+#   1. Push this file to your GitHub repo
+#   2. Render Dashboard → Blueprints → New Blueprint Instance
+#   3. Point at the repo branch and this file path (app/infra/render.yaml)
+#   4. Review the services Render proposes, then Apply
+#
+# The manual UI walkthrough in docs/plans/m6-deploy.md Tasks 8-10 is the
+# primary path for the first deploy. This file exists so subsequent
+# deploys can be reproduced declaratively.
+
+services:
+  - type: web
+    name: prsi-api
+    plan: free
+    runtime: docker
+    dockerfilePath: ./app/infra/Dockerfile.api
+    dockerContext: ./app
+    region: oregon
+    branch: main
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: prsi-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: prsi-redis
+          property: connectionString
+      - key: JWT_PRIVATE_KEY
+        sync: false  # set manually in dashboard after import
+      - key: JWT_PUBLIC_KEY
+        sync: false  # set manually in dashboard after import
+      - key: JWT_ACCESS_TTL
+        value: 900
+      - key: JWT_REFRESH_TTL
+        value: 604800
+      - key: CORS_ALLOWED_ORIGIN
+        sync: false  # set to the Vercel URL after Task 7
+
+  - type: keyvalue
+    name: prsi-redis
+    plan: free
+    region: oregon
+    ipAllowList: []  # internal access only
+
+databases:
+  - name: prsi-postgres
+    plan: free
+    databaseName: prsi
+    user: prsi
+    region: oregon
