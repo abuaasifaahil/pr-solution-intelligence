@@ -48,7 +48,11 @@ export function Sidebar() {
 
       <nav className="px-2.5 py-2">
         <SidebarLink href="/" label="Home" active={pathname === '/'} />
-        <SidebarLink href="#" label="Settings (coming in M5)" active={false} disabled />
+        <SidebarLink
+          href="/settings/data-sources"
+          label="Settings"
+          active={pathname?.startsWith('/settings/') ?? false}
+        />
       </nav>
 
       <div className="px-2 pt-2 pb-1 text-[0.7rem] font-semibold uppercase tracking-wider text-text-tertiary">
