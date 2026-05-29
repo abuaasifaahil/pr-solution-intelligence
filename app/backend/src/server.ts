@@ -10,6 +10,12 @@ declare module 'fastify' {
   }
 }
 
+function corsOriginConfig(): true | string[] {
+  const raw = process.env.CORS_ALLOWED_ORIGIN ?? '*';
+  if (raw === '*') return true;
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
@@ -21,7 +27,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     },
   });
 
-  await app.register(cors, { origin: true, credentials: true });
+  await app.register(cors, { origin: corsOriginConfig(), credentials: true });
   app.decorate('auth', authMiddleware);
   await app.register(healthzRoute);
   await app.register(authRoutes);

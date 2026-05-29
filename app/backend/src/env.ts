@@ -10,6 +10,8 @@ const EnvSchema = z.object({
   JWT_PUBLIC_KEY: z.string().min(100).transform((s) => s.replace(/\\n/g, '\n')),
   JWT_ACCESS_TTL: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL: z.coerce.number().int().positive().default(604800),
+  // Comma-separated list of allowed origins; '*' means allow all (dev only).
+  CORS_ALLOWED_ORIGIN: z.string().default('*'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
