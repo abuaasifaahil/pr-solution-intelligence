@@ -191,11 +191,18 @@ describe('Chat CRUD routes (integration)', () => {
     expect(chatRes.json().data.chat.context.state).toBe('ready');
     expect(chatRes.json().data.chat.context.brand).toBe('FreshSip');
 
-    // Verify message thread has welcome + 6 user + 6 AI = 13 messages
-    const msgs = await app.inject({
-      method: 'GET', url: `/api/v1/chats/${chatId}/messages`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-    expect(msgs.json().data.messages.length).toBeGreaterThanOrEqual(13);
+    // Verify message thread has welcome + 6 user + 6 AI = 13 messages.
+    // M4: background streaming fills the placeholder asynchronously; poll up to 30s.
+    let count = 0;
+    for (let i = 0; i < 60; i++) {
+      const msgs = await app.inject({
+        method: 'GET', url: `/api/v1/chats/${chatId}/messages`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      count = msgs.json().data.messages.length;
+      if (count >= 13) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    expect(count).toBeGreaterThanOrEqual(13);
   });
 });

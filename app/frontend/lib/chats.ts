@@ -60,9 +60,15 @@ export async function listMessages(chatId: string): Promise<ChatMessage[]> {
   return apiFetch<{ messages: ChatMessage[] }>(`/api/v1/chats/${chatId}/messages`).then((d) => d.messages);
 }
 
+export interface SendMessageResponse {
+  userMessage: ChatMessage;
+  assistantMessageId: string;
+  chips: ChipDef[];
+}
+
 export async function sendMessage(
   chatId: string, content: string, choice?: string,
-): Promise<{ userMessage: ChatMessage; aiMessage: ChatMessage }> {
+): Promise<SendMessageResponse> {
   return apiFetch(`/api/v1/chats/${chatId}/messages`, {
     method: 'POST',
     body: JSON.stringify({ content, choice }),

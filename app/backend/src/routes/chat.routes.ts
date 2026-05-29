@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   createChat, listChats, getChat, deleteChat, appendUserMessage, listMessages,
+  startStreamingReply,
 } from '../services/chat.service.js';
 
 const CreateChatBody = z.object({
@@ -64,13 +65,21 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       return { success: false, error: 'Invalid body' };
     }
     try {
-      const out = await appendUserMessage(
+      // M4: streaming-aware. Returns synchronously after persisting user + placeholder.
+      // The background task (sync.streamingDone) is intentionally NOT awaited.
+      const sync = await startStreamingReply(
         req.user!.userId, id, parsed.data.content, parsed.data.choice,
       );
-      return { success: true, data: out };
+      return {
+        success: true,
+        data: {
+          userMessage: sync.userMessage,
+          assistantMessageId: sync.assistantMessageId,
+          chips: sync.chips,
+        },
+      };
     } catch (err) {
       const message = (err as Error).message;
-      // "Chat not found" is a 404; anything else (LLM down, DB error, etc.) is 500.
       reply.code(message === 'Chat not found' ? 404 : 500);
       req.log.error({ err }, 'POST /chats/:id/messages failed');
       return { success: false, error: message };

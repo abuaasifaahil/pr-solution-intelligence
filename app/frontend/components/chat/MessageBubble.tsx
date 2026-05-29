@@ -4,7 +4,11 @@ import type { ChatMessage } from '../../lib/chats';
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   return (
-    <div className={`flex gap-2.5 max-w-3xl ${isUser ? 'self-end flex-row-reverse' : 'self-start'}`}>
+    <div
+      data-role={message.role}
+      data-message-id={message.id}
+      className={`flex gap-2.5 max-w-3xl ${isUser ? 'self-end flex-row-reverse' : 'self-start'}`}
+    >
       <div
         className={`w-[30px] h-[30px] rounded-full flex-shrink-0 flex items-center justify-center
                     text-[0.72rem] font-bold ${
