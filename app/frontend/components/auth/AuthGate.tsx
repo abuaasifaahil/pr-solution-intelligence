@@ -6,10 +6,14 @@ import { apiFetch, ApiError } from '../../lib/api-client';
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { user, accessToken, setAuth, clear } = useAuthStore();
+  const { user, accessToken, hasHydrated, setAuth, clear } = useAuthStore();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Wait for zustand-persist to load from localStorage. Without this guard
+    // a deep-link / hard-reload of /chat/:id sees the initial-state null token
+    // and redirects to /login before the persisted session is restored.
+    if (!hasHydrated) return;
     if (!accessToken) {
       router.replace('/login');
       return;
@@ -32,9 +36,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
         }
       }
     })();
-  }, [accessToken, router, setAuth, clear]);
+  }, [hasHydrated, accessToken, router, setAuth, clear]);
 
-  if (!user || !ready) {
+  if (!hasHydrated || !user || !ready) {
     return <div className="min-h-screen flex items-center justify-center text-text-secondary">Loading…</div>;
   }
   return <>{children}</>;
