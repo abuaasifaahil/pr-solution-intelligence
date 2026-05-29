@@ -3,6 +3,15 @@ import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+const defaultSkills = [
+  { name: 'sentiment_analysis',   description: 'Classifies content as positive / neutral / negative',          type: 'analysis',    isDefault: true },
+  { name: 'theme_classification', description: 'Tags content with a controlled set of topical themes',         type: 'analysis',    isDefault: true },
+  { name: 'emotion_detection',    description: 'Detects discrete emotions (joy, anger, fear, sadness, surprise)', type: 'analysis', isDefault: true },
+  { name: 'entity_extraction',    description: 'Extracts people, organizations, locations, products from text', type: 'extraction', isDefault: true },
+  { name: 'signal_detection',     description: 'Flags crisis / virality / regulatory signals from a stream',   type: 'detection',  isDefault: true },
+  { name: 'reach_analysis',       description: 'Computes audience reach and engagement metrics per content piece', type: 'measurement', isDefault: true },
+] as const;
+
 const defaultAgents = [
   {
     type: 'pr_impact',
@@ -69,6 +78,16 @@ async function main(): Promise<void> {
     });
   }
   console.log(`✓ Seeded ${defaultAgents.length} default agents`);
+
+  console.log(`Seeding ${defaultSkills.length} default skills...`);
+  for (const skill of defaultSkills) {
+    await prisma.skill.upsert({
+      where: { name: skill.name },
+      update: { description: skill.description, type: skill.type, isDefault: skill.isDefault },
+      create: { ...skill, handlerConfig: {}, isActive: true },
+    });
+  }
+  console.log(`✓ Seeded ${defaultSkills.length} default skills`);
 
   // Seed users — `users` has FORCE ROW LEVEL SECURITY (set in the add_rls
   // migration) and no INSERT policy. Even the table owner cannot insert under
