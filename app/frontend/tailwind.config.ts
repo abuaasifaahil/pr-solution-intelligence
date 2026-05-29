@@ -42,7 +42,7 @@ const config: Config = {
         mono: ['"Cascadia Code"', '"Fira Code"', '"JetBrains Mono"', 'monospace'],
       },
       borderRadius: {
-        sm: '4px', md: '8px', lg: '12px', xl: '16px',
+        sm: '4px', md: '8px', lg: '12px', xl: '16px', pill: '9999px',
       },
       boxShadow: {
         'win-2':  '0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.1)',
