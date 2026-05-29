@@ -2,13 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // We mock ioredis with a tiny in-memory pub/sub that exercises the same surface
 // (publish + subscribe + message event + quit). One pub instance + one sub instance.
+type MessageListener = (channel: string, message: string) => void;
+
 interface FakeRedisInstance {
   publish: (channel: string, message: string) => Promise<number>;
   subscribe: (channel: string) => Promise<void>;
   unsubscribe: (channel: string) => Promise<void>;
-  on: (event: 'message', handler: (channel: string, message: string) => void) => void;
+  on: (event: 'message', handler: MessageListener) => void;
   duplicate: () => FakeRedisInstance;
   quit: () => Promise<'OK'>;
+  // Internal fields used by publish() to broadcast across the fake instance pool.
+  _listeners: Map<string, MessageListener[]>;
+  _subscribed: Set<string>;
 }
 
 const instances: FakeRedisInstance[] = [];
@@ -35,10 +40,9 @@ function makeInstance(): FakeRedisInstance {
     },
     duplicate() { return makeInstance(); },
     async quit() { return 'OK' as const; },
-    // expose internals for cross-instance broadcast above
     _listeners: listeners,
     _subscribed: subscribed,
-  } as FakeRedisInstance & { _listeners: typeof listeners; _subscribed: typeof subscribed };
+  };
   instances.push(inst);
   return inst;
 }

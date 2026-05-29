@@ -7,7 +7,12 @@ vi.mock('../../src/lib/llm.js', () => ({
   chatCompleteStream: (...args: unknown[]) => streamMock(...args),
   parseChoice: vi.fn(),
 }));
-const publishMock = vi.fn(async () => {});
+// Typed so `publishMock.mock.calls` is `[string, string, unknown][]`, letting
+// us destructure call args (`[, type]`) without TS treating each call as `[]`.
+// vitest 1.6: `vi.fn<TArgs extends any[], TReturn>(impl)`.
+const publishMock = vi.fn<[chatId: string, type: string, payload: unknown], Promise<void>>(
+  async () => { /* noop */ },
+);
 vi.mock('../../src/lib/event-bus.js', () => ({
   publishChatEvent: publishMock,
 }));
