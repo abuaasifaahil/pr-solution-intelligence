@@ -1,24 +1,15 @@
 'use client';
-import { useAuthStore } from '../lib/auth-store';
-import { greetingFor } from '../lib/greeting';
-import { AuthGate } from '../components/auth/AuthGate';
-import { apiFetch } from '../lib/api-client';
+import { useAuthStore } from '../../lib/auth-store';
+import { greetingFor } from '../../lib/greeting';
+import { apiFetch } from '../../lib/api-client';
 import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
-  return (
-    <AuthGate>
-      <Home />
-    </AuthGate>
-  );
-}
-
-function Home() {
   const router = useRouter();
   const { user, clear } = useAuthStore();
 
   async function handleLogout(): Promise<void> {
-    try { await apiFetch('/api/v1/auth/session', { method: 'DELETE' }); } catch { /* fall through */ }
+    try { await apiFetch('/api/v1/auth/session', { method: 'DELETE' }); } catch { /* */ }
     clear();
     router.replace('/login');
   }
@@ -42,7 +33,6 @@ function Home() {
           Sign out
         </button>
       </div>
-
       <div className="card">
         <p className="text-sm text-text-secondary">
           Signed in as <code className="font-mono bg-win-blue-50 px-1.5 py-0.5 rounded-sm">{user?.email}</code>{' '}
