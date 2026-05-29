@@ -17,8 +17,9 @@ test.describe('M2: auth flow', () => {
     await page.getByLabel('Password').fill(A_PASSWORD);
     await page.getByRole('button', { name: /Sign In/i }).click();
     await expect(page).toHaveURL(FE_URL + '/');
-    // Greeting includes the seeded display name
-    await expect(page.getByText(/Alice/i)).toBeVisible();
+    // Greeting includes the seeded display name. .first() needed because M3.11
+    // added a sidebar profile chip that also renders the display name.
+    await expect(page.getByText(/Alice/i).first()).toBeVisible();
   });
 
   test('invalid credentials show error message', async ({ page }) => {
