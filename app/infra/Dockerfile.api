@@ -34,4 +34,8 @@ COPY --from=build /repo/package.json ./package.json
 COPY --from=build /repo/pnpm-workspace.yaml ./pnpm-workspace.yaml
 WORKDIR /repo/backend
 EXPOSE 3001
-CMD ["node_modules/.bin/tsx", "src/index.ts"]
+# Run prisma migrate deploy from the shared workspace before starting the
+# Fastify server. migrate deploy is idempotent (skips already-applied migrations)
+# so this is safe on every container start. If migrations fail, the process exits
+# non-zero and Render flags the deploy as failed instead of serving a broken API.
+CMD ["sh", "-c", "cd /repo/shared && node_modules/.bin/prisma migrate deploy && cd /repo/backend && exec node_modules/.bin/tsx src/index.ts"]

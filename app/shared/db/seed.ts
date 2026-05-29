@@ -67,17 +67,25 @@ async function main(): Promise<void> {
   }
   console.log(`✓ Seeded ${defaultAgents.length} default agents`);
 
-  // Seed users — prisma connects as 'prsi' which is a superuser with BYPASSRLS,
-  // so the upsert works directly without any role switching even with RLS active.
+  // Seed users — `users` has FORCE ROW LEVEL SECURITY (set in the add_rls
+  // migration) and no INSERT policy. Even the table owner cannot insert under
+  // FORCE. Temporarily lift FORCE on `users` for the duration of the seed,
+  // run the upserts, then restore FORCE. The seed connection user must be the
+  // table owner (it is — Prisma migrate ran as this user).
   console.log(`Seeding ${testUsers.length} test users...`);
   const hash = await bcrypt.hash('Password123!', 12);
-  for (const user of testUsers) {
-    const upserted = await prisma.user.upsert({
-      where: { email: user.email },
-      update: { displayName: user.displayName, passwordHash: hash, role: user.role, isActive: true },
-      create: { email: user.email, passwordHash: hash, displayName: user.displayName, role: user.role },
-    });
-    console.log(`  ✓ ${user.email} → id=${upserted.id}`);
+  await prisma.$executeRawUnsafe('ALTER TABLE users NO FORCE ROW LEVEL SECURITY');
+  try {
+    for (const user of testUsers) {
+      const upserted = await prisma.user.upsert({
+        where: { email: user.email },
+        update: { displayName: user.displayName, passwordHash: hash, role: user.role, isActive: true },
+        create: { email: user.email, passwordHash: hash, displayName: user.displayName, role: user.role },
+      });
+      console.log(`  ✓ ${user.email} → id=${upserted.id}`);
+    }
+  } finally {
+    await prisma.$executeRawUnsafe('ALTER TABLE users FORCE ROW LEVEL SECURITY');
   }
   console.log(`✓ Seeded ${testUsers.length} test users (password: Password123!)`);
 }
