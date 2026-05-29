@@ -30,10 +30,10 @@ Phase specs are large. Do not load them all into context. Follow this order:
 
 ## Current state
 
-- **Active phase:** Phase 1 — Foundation Core
-- **Active milestone:** M5 — Settings tabs *(M4 WebSocket streaming complete)*
-- **Completed milestones:** M1 (repo scaffold), M2 (auth flow), M6 (deploy: Vercel + Render), M3 (chat creation + REST messaging), M4 (WebSocket + OrchestratorAgent streaming)
-- **Remaining:** M5 (settings tabs)
+- **Active phase:** Phase 1 — Foundation Core — **SHIPPED**
+- **Active milestone:** Phase 2 kickoff pending user approval
+- **Completed milestones:** M1, M2, M3, M4, M5 (settings — 5 tabs, full CRUD, AES-256-GCM secrets), M6 (deploy: Vercel + Render)
+- **Remaining:** none — Phase 1 complete
 - See `docs/phase1.md` for milestone breakdown and `docs/plans/` for per-milestone plans.
 
 ### Live deploy URLs
@@ -49,6 +49,8 @@ Phase specs are large. Do not load them all into context. Follow this order:
 Auto-deploys: push to `main` → Vercel + Render redeploy automatically. PRs get Vercel preview URLs.
 
 ⚠ **Render free Postgres expires 2026-06-28** (30 days from creation). Migrate to Starter ($7/mo) or Neon before then. See `docs/m6-deploy-ops.md`.
+
+**Encryption key:** `ENCRYPTION_KEY` (32-byte hex, 64 chars) is set in Render env vars for prod and `app/backend/.env` for local. Rotating it invalidates every stored API key / token / model key. Store the value in a password manager — there is no recovery if it is lost.
 
 **Test credentials** (seeded on every fresh DB):
 - `user-a@test.local` / `Password123!` (Alice — display name "Alice (test)")

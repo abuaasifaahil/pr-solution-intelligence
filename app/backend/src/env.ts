@@ -16,6 +16,9 @@ const EnvSchema = z.object({
   AZURE_OPENAI_API_KEY: z.string().min(20),
   AZURE_OPENAI_API_VERSION: z.string().default('2025-03-01-preview'),
   AZURE_OPENAI_DEPLOYMENT: z.string().default('gpt-4.1'),
+  // M5 — AES-256-GCM key for encrypting data-source/MCP/model secrets.
+  // 32 bytes = 64 hex characters. Generate with: openssl rand -hex 32
+  ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, 'ENCRYPTION_KEY must be 64 hex chars (32 bytes)'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
