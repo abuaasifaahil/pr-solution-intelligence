@@ -31,10 +31,28 @@ Phase specs are large. Do not load them all into context. Follow this order:
 ## Current state
 
 - **Active phase:** Phase 1 — Foundation Core
-- **Active milestone:** M6 — Deploy + CI (Vercel + Render) — *pulled forward from end-of-phase per user decision to migrate off local Docker for primary dev*
-- **Completed milestones:** M1 (repo scaffold + Docker Compose), M2 (auth flow end-to-end) — both merged to `main`
-- **Remaining after M6:** M3 (chat creation), M4 (WebSocket + Orchestrator), M5 (settings tabs)
+- **Active milestone:** M3 — Chat creation + REST messaging *(next; M6 deferred to end of phase but pulled forward + complete)*
+- **Completed milestones:** M1 (repo scaffold), M2 (auth flow), M6 (deploy: Vercel + Render — LIVE)
+- **Remaining:** M3 (chat creation), M4 (WebSocket + Orchestrator), M5 (settings tabs)
 - See `docs/phase1.md` for milestone breakdown and `docs/plans/` for per-milestone plans.
+
+### Live deploy URLs
+
+| Service | URL | Provider | Plan |
+|---|---|---|---|
+| Frontend | https://pr-solutions.vercel.app | Vercel | Hobby (free) |
+| Backend | https://prsi-api.onrender.com | Render | Free web service |
+| Postgres | internal-only `dpg-d8cfmna8qa3s73bhqo50-a` | Render | Free **— expires 2026-06-28** |
+| Redis (Key-Value) | internal-only `red-d8cfmngg4nts738m05ug` | Render | Free 25 MB |
+| GitHub repo | https://github.com/abuaasifaahil/pr-solution-intelligence | GitHub | Private |
+
+Auto-deploys: push to `main` → Vercel + Render redeploy automatically. PRs get Vercel preview URLs.
+
+⚠ **Render free Postgres expires 2026-06-28** (30 days from creation). Migrate to Starter ($7/mo) or Neon before then. See `docs/m6-deploy-ops.md`.
+
+**Test credentials** (seeded on every fresh DB):
+- `user-a@test.local` / `Password123!` (Alice — display name "Alice (test)")
+- `user-b@test.local` / `Password123!` (Bob — display name "Bob (test)")
 
 ## Reading the .docx specs
 
