@@ -79,3 +79,30 @@ export async function parseChoice(userInput: string, options: string[]): Promise
     return null;
   }
 }
+
+/**
+ * Stream Azure OpenAI chat completions as an async generator of text deltas.
+ * Each yielded string is the raw delta (a token or short token sequence) —
+ * callers concatenate to build the full message. Empty/role-only chunks are
+ * skipped so callers never see "" deltas.
+ */
+export async function* chatCompleteStream(
+  input: ChatCompleteInput,
+): AsyncGenerator<string, void, void> {
+  const env = loadEnv();
+  const stream = await getClient().chat.completions.create({
+    model: env.AZURE_OPENAI_DEPLOYMENT,
+    temperature: input.temperature ?? 0.3,
+    stream: true,
+    messages: [
+      { role: 'system', content: input.system },
+      ...input.messages,
+    ],
+  });
+  for await (const chunk of stream as AsyncIterable<{ choices: Array<{ delta?: { content?: string } }> }>) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (typeof delta === 'string' && delta.length > 0) {
+      yield delta;
+    }
+  }
+}
