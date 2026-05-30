@@ -1,6 +1,7 @@
 import { BaseAgent, type AgentInput } from './base-agent.js';
 import {
   advance,
+  CHIP_OPTIONS_BY_STATE,
   INITIAL_STATE,
   WELCOME_CHIPS_BY_AGENT,
   type ConversationState,
@@ -72,13 +73,7 @@ export class OrchestratorAgent extends BaseAgent {
     // If a chip click came in, use it directly.
     if (p.choice) return { advanceInput: { choice: p.choice }, state: p.state };
     // Otherwise try to extract a choice from free text via the LLM for states with chips.
-    const chipOptionsByState: Partial<Record<ConversationState, string[]>> = {
-      awaiting_date: ['weekly', '10days', '20days', 'custom'],
-      awaiting_enrichment: ['enrichment', 'enrichment_plus_reach'],
-      awaiting_competitors: ['top5', 'top3', 'top2', 'other'],
-      awaiting_intention: ['intention_based', 'comment_based'],
-    };
-    const options = chipOptionsByState[p.state];
+    const options = CHIP_OPTIONS_BY_STATE[p.state];
     if (options) {
       const parsed = await parseChoice(p.message, options);
       if (parsed) return { advanceInput: { choice: parsed }, state: p.state };
