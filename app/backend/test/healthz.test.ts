@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 vi.mock('@prsi/shared/db', () => ({
-  prisma: { $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]), $disconnect: vi.fn() },
+  prisma: {
+    $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $disconnect: vi.fn(),
+    // bootstrapAgents (server.ts) queries prisma.agent.findMany at boot.
+    // Return an empty list so the registry stays empty for the unit test.
+    agent: { findMany: vi.fn().mockResolvedValue([]) },
+  },
 }));
 
 vi.mock('../src/lib/redis.js', () => ({

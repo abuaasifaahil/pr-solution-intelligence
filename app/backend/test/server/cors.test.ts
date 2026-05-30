@@ -2,7 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 vi.mock('@prsi/shared/db', () => ({
-  prisma: { $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]), $disconnect: vi.fn() },
+  prisma: {
+    $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $disconnect: vi.fn(),
+    agent: { findMany: vi.fn().mockResolvedValue([]) },
+  },
 }));
 vi.mock('../../src/lib/redis.js', () => ({
   getRedis: () => ({ ping: vi.fn().mockResolvedValue('PONG') }),
