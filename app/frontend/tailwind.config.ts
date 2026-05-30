@@ -36,6 +36,15 @@ const config: Config = {
         'text-inverse':   '#FFFFFF',
         'border-default': '#E0E0E0',
         'border-subtle':  '#F0F0F0',
+        // Status pills used by Settings cards (M5). Mapped to Fluent palette.
+        'status-success-bg':   '#DFF6DD',
+        'status-success-text': '#107C10',
+        'status-warn-bg':      '#FFF4CE',
+        'status-warn-text':    '#CA5010',
+        'status-error-bg':     '#FED9CC',
+        'status-error-text':   '#D13438',
+        'status-info-bg':      '#EBF3FE',
+        'status-info-text':    '#0078D4',
       },
       fontFamily: {
         sans: ['"DM Sans"', '"Segoe UI Variable"', '"Segoe UI"', 'system-ui', 'sans-serif'],

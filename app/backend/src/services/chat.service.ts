@@ -224,19 +224,27 @@ export async function startStreamingReply(
       },
     })) as MessageRecord;
 
-    // Compute chips synchronously by running the state-machine `advance()`
-    // without an LLM call. We re-import here to avoid a top-level cycle.
+    // Compute chips + advance state synchronously via the pure state-machine.
+    // Persist the new context BEFORE returning so consecutive POSTs (and any
+    // background task that reads chat.context) see the advanced state. The
+    // background streaming task that follows is LLM-only — it does NOT need
+    // to re-advance state; it just fills in the assistant message content.
     const { advance } = await import('../agents/orchestrator-state.js');
     const advanceInput = choice ? { choice } : { freeText: content };
     const currentState = (chat.context.state ?? 'welcome') as ConversationState;
     const r = advance(currentState, advanceInput, chat.agentType);
+    const advancedContext = { ...chat.context, ...r.contextPatch } as ChatContext;
+    await tx.chat.update({
+      where: { id: chatId },
+      data: { context: toJson(advancedContext) },
+    });
 
     return {
       userMessage,
       assistantMessageId: placeholder.id,
       chips: r.chips,
       chatAgentType: chat.agentType,
-      chatContext: chat.context,
+      chatContext: advancedContext,
       currentState,
     };
   });
@@ -267,7 +275,10 @@ export async function startStreamingReply(
         },
       });
 
-      // Persist final content + chips into the placeholder + bump chat context.
+      // Persist final content + chips into the placeholder. Chat context was
+      // already advanced synchronously in the sync block; if we updated it
+      // again here, a concurrent POST that further-advanced state could be
+      // overwritten by this stale snapshot.
       await withUser(userId, async (tx) => {
         await tx.message.update({
           where: { id: sync.assistantMessageId },
@@ -275,11 +286,6 @@ export async function startStreamingReply(
             content: result.replyText,
             metadata: toJson({ chips: result.chips }),
           },
-        });
-        const newContext = { ...sync.chatContext, ...result.contextPatch };
-        await tx.chat.update({
-          where: { id: chatId },
-          data: { context: toJson(newContext) },
         });
       });
 
