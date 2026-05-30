@@ -101,6 +101,20 @@ export function isReady(state: ConversationState): boolean {
   return state === 'ready';
 }
 
+/**
+ * Per-state chip values used by the LLM `parseChoice` extractor. Centralized
+ * here (not duplicated in chat.service + orchestrator.agent) so the sync
+ * state-advance path and the streaming-reason path agree on what counts as
+ * a valid free-text-to-choice mapping. Free-text states (awaiting_brand)
+ * are absent — those stay in freeText mode.
+ */
+export const CHIP_OPTIONS_BY_STATE: Partial<Record<ConversationState, string[]>> = {
+  awaiting_date: ['weekly', '10days', '20days', 'custom'],
+  awaiting_enrichment: ['enrichment', 'enrichment_plus_reach'],
+  awaiting_competitors: ['top5', 'top3', 'top2', 'other'],
+  awaiting_intention: ['intention_based', 'comment_based'],
+};
+
 export function advance(
   state: ConversationState,
   input: AdvanceInput,

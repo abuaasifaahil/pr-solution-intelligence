@@ -3,8 +3,9 @@ import type { Prisma } from '@prsi/shared/db';
 import { withUser } from '../lib/prisma-rls.js';
 import { AgentRegistry } from '../agents/agent-registry.js';
 import { publishChatEvent } from '../lib/event-bus.js';
-import type { ChatContext, Chip, ConversationState } from '../agents/orchestrator-state.js';
+import { CHIP_OPTIONS_BY_STATE, type ChatContext, type Chip, type ConversationState } from '../agents/orchestrator-state.js';
 import type { OrchestratorAgent } from '../agents/orchestrator.agent.js';
+import { parseChoice } from '../lib/llm.js';
 
 /** Cast a plain object to Prisma's opaque InputJsonValue type. */
 function toJson(v: unknown): Prisma.InputJsonValue {
@@ -226,12 +227,29 @@ export async function startStreamingReply(
 
     // Compute chips + advance state synchronously via the pure state-machine.
     // Persist the new context BEFORE returning so consecutive POSTs (and any
-    // background task that reads chat.context) see the advanced state. The
-    // background streaming task that follows is LLM-only — it does NOT need
-    // to re-advance state; it just fills in the assistant message content.
+    // background task that reads chat.context) see the advanced state.
+    //
+    // Free-text path: when the user types instead of clicking a chip and the
+    // current state has known chip options, run the LLM `parseChoice` here
+    // to derive a choice. WITHOUT this, advance() would see no choice for a
+    // chip-state and keep the state pinned (e.g. "weekly please" → stays at
+    // awaiting_date because the state machine only matches enum values).
+    // Costs ~500ms inline but only on the free-text path; chip clicks are
+    // instant.
     const { advance } = await import('../agents/orchestrator-state.js');
-    const advanceInput = choice ? { choice } : { freeText: content };
     const currentState = (chat.context.state ?? 'welcome') as ConversationState;
+    let advanceInput: { choice?: string; freeText?: string };
+    if (choice) {
+      advanceInput = { choice };
+    } else {
+      const options = CHIP_OPTIONS_BY_STATE[currentState];
+      if (options) {
+        const parsed = await parseChoice(content, options);
+        advanceInput = parsed ? { choice: parsed } : { freeText: content };
+      } else {
+        advanceInput = { freeText: content };
+      }
+    }
     const r = advance(currentState, advanceInput, chat.agentType);
     const advancedContext = { ...chat.context, ...r.contextPatch } as ChatContext;
     await tx.chat.update({
