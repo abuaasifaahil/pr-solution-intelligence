@@ -1,16 +1,24 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { MessageBubble } from './MessageBubble';
-import { ChipRow } from './ChipRow';
+import { ChatActionPrompt } from './ChatActionPrompt';
+import type { ChatActionOption, ChatActionResult } from './ChatActionPrompt';
 import type { ChatMessage, ChipDef } from '../../lib/chats';
 
 interface Props {
   messages: ChatMessage[];
   onChipPick: (chip: ChipDef) => void;
+  onCustomReply?: (text: string) => void;
   busy?: boolean;
 }
 
-export function MessageThread({ messages, onChipPick, busy }: Props) {
+/**
+ * Renders the chat thread plus, when the last assistant message ships chips,
+ * an inline ChatActionPrompt (Claude Code style). Picking a chip routes
+ * through onChipPick; picking the auto-added "Other — type your own" row
+ * routes through onCustomReply (free-text path).
+ */
+export function MessageThread({ messages, onChipPick, onCustomReply, busy }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,12 +28,42 @@ export function MessageThread({ messages, onChipPick, busy }: Props) {
   const last = messages[messages.length - 1];
   const lastChips: ChipDef[] = last?.role === 'assistant' ? (last.metadata.chips ?? []) : [];
 
+  // Map chips 1:1 to ChatActionOption. The prompt itself appends the
+  // "Other — type your own" row when allowCustom is true, so we don't add
+  // it here. New instance per chip-set so the prompt resets on each turn.
+  const promptOptions = useMemo<ChatActionOption[]>(
+    () => lastChips.map((c) => ({ id: c.value, label: c.label })),
+    [lastChips],
+  );
+
+  function handleResult(r: ChatActionResult): void {
+    if (r.customText && onCustomReply) {
+      onCustomReply(r.customText);
+      return;
+    }
+    const chip = lastChips.find((c) => c.value === r.id);
+    if (chip) onChipPick(chip);
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3.5">
       {messages.map((m) => (
         <MessageBubble key={m.id} message={m} />
       ))}
-      {!busy && <ChipRow chips={lastChips} onPick={onChipPick} />}
+
+      {!busy && promptOptions.length > 0 && (
+        <div className="pl-10">
+          {/* `key` on the last message id ensures the prompt state resets
+              every assistant turn (fresh highlight + input draft). */}
+          <ChatActionPrompt
+            key={last?.id ?? 'none'}
+            question="Pick a response — or choose 'Other' to type your own."
+            options={promptOptions}
+            onSelect={handleResult}
+          />
+        </div>
+      )}
+
       {busy && (
         <div className="flex gap-2.5 pl-10 text-text-tertiary text-[0.82rem]">
           <span className="animate-pulse">●</span>

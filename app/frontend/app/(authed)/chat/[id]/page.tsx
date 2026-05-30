@@ -120,7 +120,12 @@ export default function ChatPage({ params }: PageProps) {
             {error}
           </div>
         )}
-        <MessageThread messages={messages} onChipPick={handleChip} busy={busy} />
+        <MessageThread
+          messages={messages}
+          onChipPick={handleChip}
+          onCustomReply={(text) => void handleSend(text)}
+          busy={busy}
+        />
         <ChatInput onSend={(text) => handleSend(text)} disabled={busy} />
       </div>
     </>
