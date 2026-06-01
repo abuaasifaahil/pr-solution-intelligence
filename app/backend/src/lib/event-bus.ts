@@ -1,5 +1,6 @@
 import type Redis from 'ioredis';
 import { getRedis } from './redis.js';
+import type { Intent, IntentFieldKey } from '../types/intent.js';
 
 export type ChatEventType =
   | 'typing:start'
@@ -15,6 +16,12 @@ export type ChatEventType =
   // Phase 2 — conversational flow engine (M7.5) emits this when chat_params
   // advances through the 9-state machine.
   | 'flow:state-change'
+  // Phase 3.5 (M9.3) — IntentExtractor LLM emits this once per chat, on the
+  // user's first message, after parsing free text into structured chat_params
+  // slots. The payload shape is captured in `IntentExtractedPayload` below.
+  // Definition only — emission lands in M9.4 once the orchestrator hook
+  // calls extractIntent().
+  | 'intent:extracted'
   // Phase 2 — DataExtractAgent (M7.7) emits one `processing:step` per step
   // in its 7-step pipeline, and a final `processing:complete` when the run
   // finishes successfully.
@@ -51,6 +58,20 @@ export type ChatEventType =
 export interface ChatEvent {
   type: ChatEventType;
   payload: unknown;
+}
+
+/**
+ * Payload for the `intent:extracted` event (M9.3 type, M9.4 emits).
+ *
+ * `unfilledFields` is the precomputed list of slots the orchestrator still
+ * needs to prompt the user for — derived from `unfilledFields(intent)` in
+ * `types/intent.ts`. M9.8's IntentExtractedCard renders the intent summary
+ * and reads `unfilledFields` to mark which chips still need attention.
+ */
+export interface IntentExtractedPayload {
+  chatId: string;
+  intent: Intent;
+  unfilledFields: IntentFieldKey[];
 }
 
 function channelFor(chatId: string): string {
