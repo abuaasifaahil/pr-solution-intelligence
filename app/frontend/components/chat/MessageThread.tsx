@@ -10,6 +10,7 @@ import { FlowStepPrompt } from './FlowStepPrompt';
 import { BooleanQueryPreview } from './BooleanQueryPreview';
 import { AgentActionPanel } from './AgentActionPanel';
 import { EnrichmentProgressCard } from './EnrichmentProgressCard';
+import { ChipUpArtifact } from './ChipUpArtifact';
 import type { EnrichmentSessionState } from '../../hooks/useEnrichmentSession';
 import type { ChatMessage, ChipDef } from '../../lib/chats';
 import type { UploadStatus, UploadPreview } from '../../lib/uploads';
@@ -24,6 +25,8 @@ import type { AgentStep } from './ProcessingSteps';
 import type { AgentActionResult } from './AgentActionPanel';
 
 interface Props {
+  /** Chat id — threaded through to the ChipUp artifact for deep-link share URLs. */
+  chatId: string;
   messages: ChatMessage[];
   onChipPick: (chip: ChipDef) => void;
   onCustomReply?: (text: string) => void;
@@ -79,6 +82,7 @@ interface Props {
  * orchestrator is the M3 flow and Phase 2 is a separate state machine.
  */
 export function MessageThread({
+  chatId,
   messages,
   onChipPick,
   onCustomReply,
@@ -225,6 +229,19 @@ export function MessageThread({
           Only mounts when an enrichment job actually exists. */}
       {flowState === 'complete' && enrichment?.job && (
         <EnrichmentProgressCard state={enrichment} />
+      )}
+
+      {/* Phase 3 (M8.9) — persistent JSON artifact. Renders once the
+          enrichment service has signalled the dashboard JSON is ready
+          (driven by the `enrichment:json-ready` WS event the M8.7
+          /enrich/json read emits on first cache miss). Lives in the
+          chat thread forever after that. */}
+      {enrichment?.isJsonReady && enrichment.jsonArtifactId && (
+        <ChipUpArtifact
+          chatId={chatId}
+          artifactId={enrichment.jsonArtifactId}
+          articleCount={enrichment.progress.total}
+        />
       )}
 
       {/* Phase 1 — orchestrator chips on the latest assistant message. Only

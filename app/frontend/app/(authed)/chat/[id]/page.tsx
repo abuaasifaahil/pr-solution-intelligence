@@ -70,6 +70,7 @@ export default function ChatPage({ params }: PageProps) {
           </div>
         )}
         <MessageThread
+          chatId={id}
           messages={session.messages}
           onChipPick={session.pickChip}
           onCustomReply={(text) => void session.send(text)}
