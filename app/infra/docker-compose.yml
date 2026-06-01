@@ -31,6 +31,42 @@ services:
       timeout: 3s
       retries: 10
 
+  # Phase 2 — S3-compatible object storage for local dev. Production swaps to
+  # AWS S3 by setting STORAGE_MODE=s3 + AWS credentials (see
+  # docs/storage-migration.md). The bucket below is auto-created by minio-init.
+  minio:
+    image: minio/minio:latest
+    container_name: prsi-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: prsi
+      MINIO_ROOT_PASSWORD: prsi_dev_minio
+    ports:
+      - '9000:9000'   # S3 API
+      - '9001:9001'   # web console
+    volumes:
+      - prsi_miniodata:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: prsi-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 prsi prsi_dev_minio &&
+      mc mb --ignore-existing local/prsi-uploads &&
+      echo 'MinIO bucket prsi-uploads ready'
+      "
+    restart: 'no'
+
   migrate:
     build:
       context: ..
@@ -106,3 +142,4 @@ services:
 volumes:
   prsi_pgdata:
   prsi_redisdata:
+  prsi_miniodata:
