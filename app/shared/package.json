@@ -7,7 +7,8 @@
   "types": "./db/index.ts",
   "exports": {
     "./db": "./db/index.ts",
-    "./types/phase2": "./types/phase2.ts"
+    "./types/phase2": "./types/phase2.ts",
+    "./types/phase3": "./types/phase3.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
