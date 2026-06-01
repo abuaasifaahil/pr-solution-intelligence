@@ -30,11 +30,18 @@ Phase specs are large. Do not load them all into context. Follow this order:
 
 ## Current state
 
-- **Active phase:** Phase 1 — Foundation Core — **SHIPPED**
-- **Active milestone:** Phase 2 kickoff pending user approval
-- **Completed milestones:** M1, M2, M3, M4, M5 (settings — 5 tabs, full CRUD, AES-256-GCM secrets), M6 (deploy: Vercel + Render)
-- **Remaining:** none — Phase 1 complete
-- See `docs/phase1.md` for milestone breakdown and `docs/plans/` for per-milestone plans.
+- **Active phase:** Phase 1 ✓ SHIPPED · Phase 2 ✓ SHIPPED
+- **Active milestone:** Phase 3 kickoff pending user approval
+- **Completed milestones:** M1, M2, M3, M4, M5, M6 (Phase 1) · M7.1–M7.10 (Phase 2)
+- **Remaining:** Phase 3 (PR enrichment), Phase 4 (dashboards), Phase 5 (memory + learning + intelligence), Phase 5.5 (dynamic tool sandbox), Phase 6 (admin UI)
+- See `docs/phase1.md` and `docs/phase2.md` for shipped contracts.
+
+### Surface area after Phase 2
+
+- **REST endpoints:** 33 (22 from Phase 1 + 11 new)
+- **DB tables:** 14 (10 from Phase 1 + 4 new — `uploads`, `articles`, `chat_params`, `boolean_queries`)
+- **WS events:** 12 (6 from Phase 1 + 6 new — `upload:parsed|error`, `flow:state-change`, `processing:step|complete`)
+- **Agents:** 2 (Orchestrator + DataExtractAgent)
 
 ### Live deploy URLs
 

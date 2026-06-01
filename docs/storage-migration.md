@@ -83,12 +83,14 @@ Save. Render auto-redeploys; the new pod boots with the S3 adapter wired up.
 Upload a probe via the API and confirm it lands in the bucket:
 
 ```bash
-curl -F file=@/tmp/probe.txt -H "Authorization: Bearer $TOKEN" \
-  https://prsi-api.onrender.com/api/uploads
-aws s3 ls s3://prsi-uploads-prod/
+curl -F file=@/tmp/probe.csv -F chatId=$CHAT_ID -H "Authorization: Bearer $TOKEN" \
+  https://prsi-api.onrender.com/api/v1/uploads
+aws s3 ls s3://prsi-uploads-prod/uploads/
 ```
 
-(Upload route lands in M7.4 — until then, exercise it from a test script that calls `getStorage().putObject()` directly.)
+Phase 2's upload route (M7.3, `POST /api/v1/uploads`) accepts the file as a single multipart/form-data part with `file` + `chatId` fields and streams it directly to the configured storage adapter — there are NO presigned URLs in Phase 2. The cap is 50 MB (enforced by `@fastify/multipart` and the route handler).
+
+If the cutover succeeds, you'll see `uploads/<userId>/<uploadId>/<filename>` keys in the bucket listing.
 
 ### 5. Rolling back
 
