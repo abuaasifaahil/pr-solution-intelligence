@@ -101,6 +101,13 @@ const chatMock = {
   ),
 };
 
+// M7.6: chat-params snapshot reads `is_confirmed` from boolean_queries.
+// No M7.6 queries exist in this suite, so always return null (== no
+// confirmed query) — the M7.5 flow-advance assertions stay intact.
+const booleanQueryMock = {
+  findFirst: vi.fn(async () => null),
+};
+
 vi.mock('@prsi/shared/db', () => ({
   prisma: {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
@@ -108,6 +115,7 @@ vi.mock('@prsi/shared/db', () => ({
     agent: { findMany: vi.fn().mockResolvedValue([]) },
     chatParams: chatParamsMock,
     chat: chatMock,
+    booleanQuery: booleanQueryMock,
   },
 }));
 
@@ -115,7 +123,7 @@ vi.mock('../../src/lib/prisma-rls.js', () => ({
   withUser: vi.fn(async (uid: string, fn: (tx: unknown) => Promise<unknown>) => {
     userIdCtx = uid;
     try {
-      return await fn({ chatParams: chatParamsMock, chat: chatMock });
+      return await fn({ chatParams: chatParamsMock, chat: chatMock, booleanQuery: booleanQueryMock });
     } finally {
       userIdCtx = '';
     }

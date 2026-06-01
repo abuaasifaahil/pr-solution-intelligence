@@ -58,7 +58,7 @@ export async function patchParams(
   chatId: string,
   patch: PatchInput,
 ) {
-  const result = await withUser(userId, async (tx) => {
+  const { result, hasConfirmedQuery } = await withUser(userId, async (tx) => {
     // Ensure row exists (lazy-create on first PATCH).
     const existing = await tx.chatParams.findUnique({ where: { chatId } });
     if (!existing) {
@@ -85,12 +85,18 @@ export async function patchParams(
     }
 
     const updated = await tx.chatParams.update({ where: { chatId }, data });
-    return updated;
+    // M7.6: pull the latest confirmed query (if any) so the snapshot can
+    // advance the flow state past 'generate_query' once the user confirms.
+    const confirmed = await tx.booleanQuery.findFirst({
+      where: { chatId, isConfirmed: true },
+      orderBy: { confirmedAt: 'desc' },
+    });
+    return { result: updated, hasConfirmedQuery: !!confirmed };
   });
 
   // Compute next state OUTSIDE the transaction so we know the previous
   // state to emit. Snapshot is built from the updated row.
-  const snapshot = toSnapshot(result);
+  const snapshot = toSnapshot({ ...result, _hasConfirmedQuery: hasConfirmedQuery });
   const nextState = getNextFlowState(snapshot);
   const prompt = getPromptForState(nextState, snapshot);
 
@@ -124,6 +130,7 @@ function toSnapshot(row: {
   competitors: unknown;
   intention: string | null;
   hasUpload: boolean;
+  _hasConfirmedQuery?: boolean;
 }): ChatParamsSnapshot {
   return {
     brand: row.brand,
@@ -133,8 +140,8 @@ function toSnapshot(row: {
     competitors: row.competitors,
     intention: row.intention,
     hasUpload: row.hasUpload,
-    hasConfirmedQuery: false, // M7.6 wires this from boolean_queries.is_confirmed
-    isProcessingComplete: false, // M7.7 wires this from DataExtractAgent
+    hasConfirmedQuery: row._hasConfirmedQuery ?? false, // M7.6: from boolean_queries.is_confirmed
+    isProcessingComplete: false, // M7.7 will wire this from DataExtractAgent
   };
 }
 

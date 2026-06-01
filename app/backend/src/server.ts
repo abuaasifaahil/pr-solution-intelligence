@@ -13,6 +13,7 @@ import { modelConfigRoutes } from './routes/model-config.routes.js';
 import { skillRoutes } from './routes/skill.routes.js';
 import { uploadRoutes } from './routes/upload.routes.js';
 import { chatParamsRoutes } from './routes/chat-params.routes.js';
+import { booleanQueryRoutes } from './routes/boolean-query.routes.js';
 import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
@@ -78,6 +79,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(skillRoutes);
   await app.register(uploadRoutes);
   await app.register(chatParamsRoutes);
+  await app.register(booleanQueryRoutes);
   await app.register(wsRoutes);
 
   // Boot the BullMQ inline worker. Phase 2 jobs register their processors

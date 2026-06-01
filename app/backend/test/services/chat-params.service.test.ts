@@ -111,17 +111,25 @@ const mockChat = {
   ),
 };
 
+// M7.6: chat-params snapshot now reads `is_confirmed` from boolean_queries.
+// The service-test suite is a pure unit suite; we just return null (no
+// confirmed query) so the existing flow-state assertions still hold.
+const mockBooleanQuery = {
+  findFirst: vi.fn(async () => null),
+};
+
 vi.mock('@prsi/shared/db', () => ({
   prisma: {
     chatParams: mockChatParams,
     chat: mockChat,
+    booleanQuery: mockBooleanQuery,
     $disconnect: vi.fn(),
   },
 }));
 
 vi.mock('../../src/lib/prisma-rls.js', () => ({
   withUser: vi.fn(async (_uid: string, fn: (tx: unknown) => Promise<unknown>) =>
-    fn({ chatParams: mockChatParams, chat: mockChat }),
+    fn({ chatParams: mockChatParams, chat: mockChat, booleanQuery: mockBooleanQuery }),
   ),
   asAdmin: vi.fn(),
 }));
@@ -157,6 +165,7 @@ describe('chat-params.service', () => {
     mockChatParams.create.mockClear();
     mockChatParams.update.mockClear();
     mockChat.findFirst.mockClear();
+    mockBooleanQuery.findFirst.mockClear();
     publishChatEventMock.mockClear();
     chatCompleteMock.mockReset();
   });
