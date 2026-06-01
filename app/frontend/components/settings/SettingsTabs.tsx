@@ -3,11 +3,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-  { slug: 'data-sources', label: 'Data Sources' },
-  { slug: 'mcp',          label: 'MCP' },
-  { slug: 'model',        label: 'Model' },
-  { slug: 'skills',       label: 'Skills' },
-  { slug: 'agents',       label: 'Agents' },
+  { slug: 'data-sources',     label: 'Data Sources' },
+  { slug: 'mcp',              label: 'MCP' },
+  { slug: 'model',            label: 'Model' },
+  { slug: 'my-agents-skills', label: 'My Agents & Skills' },
+  { slug: 'skills',           label: 'Skills' },
+  { slug: 'agents',           label: 'Agents' },
 ] as const;
 
 export function SettingsTabs() {
