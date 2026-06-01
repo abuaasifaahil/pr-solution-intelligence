@@ -1,9 +1,9 @@
 # Phase 3.5 — Autonomous Intent Extraction + OpenSearch Data Source
 
 **Source:** No .docx — this phase closes two gaps the user identified between Phase 3 and Phase 4.
-**Status:** In progress — M9.1 → M9.5 SHIPPED (locally, branch `feature/phase3.5-autonomy`); M9.5.5 next
+**Status:** **SHIPPED 2026-06-01** — M9.1 → M9.10 all landed.
 **Builds on:** [phase1.md](phase1.md) + [phase2.md](phase2.md) + [phase3.md](phase3.md)
-**Architecture decisions:** [ADR-0001 data-source adapters](adr/0001-data-source-adapter.md) · [ADR-0002 skill composition](adr/0002-skill-composition.md)
+**Architecture decisions:** [ADR-0001 data-source adapters](adr/0001-data-source-adapter.md) · [ADR-0002 skill composition](adr/0002-skill-composition.md) · [ADR-0003 chat-entry composition](adr/0003-chat-entry-composition.md)
 
 > **2026-06-01 architecture pivot:** User raised multi-source + skill-composition concerns mid-phase. Two ADRs (0001, 0002) lock the design vector. M9.6 is re-scoped to introduce the `DataSourceAdapter` interface; **M9.11 (new)** ships `chat_data_sources` table + `SourceOrchestrator`. Phase 5.5 is renamed and expanded (see ADR-0002). Phase 7 (new) handles MCP integration. None of this changes M9.1-M9.5 already shipped.
 
@@ -263,3 +263,25 @@ A test analyst (Alice) opens a new PR Impact chat and types:
 → picks "Enrichment" chip → boolean query auto-generated → confirms → DataExtractAgent fetches 1,847 articles from OpenSearch live → Phase 3 EnrichmentAgent auto-runs → ChipUp artifact appears with full enriched dataset.
 
 No upload step. No re-prompts for already-given info. Fully autonomous.
+
+## Final stats (SHIPPED 2026-06-01)
+
+| Surface | Before Phase 3.5 | After Phase 3.5 |
+|---|---|---|
+| REST endpoints | 42 | 52 (+10) |
+| DB tables | 18 | 21 (+3: `search_history`, `composable_skills`, `user_agents`) |
+| WS events | 21 | 27 (+6: `search:start`/`progress`/`fetched`/`error`/`complete`, `reach:absent`/`resolved`, `intent:extracting`/`extracted`) |
+| Agents | 4 | 5 (+SearchAgent) |
+| Test files (backend) | 60 | 91 (+31) |
+| Tests (backend) | 565 | 832 (+267) |
+| Tests (frontend) | 121 | 169 (+48) |
+| Cross-phase ADRs | 0 | 3 (data-source adapter, skill composition, chat-entry composition) |
+
+Live URLs unchanged from Phase 3: https://pr-solutions.vercel.app + https://prsi-api.onrender.com.
+
+Open follow-ups deliberately deferred:
+
+- **M9.11** (`chat_data_sources` table + `SourceOrchestrator`) — multi-source per chat
+- **M9.5.5 reach-probe full e2e** — needs M9.11 fixture injection
+- **crawler / RSS / S3 / Slack / MCP adapters** — surface ready (Coming soon)
+- **Skill manifest editor + composer runtime** — Phase 5.5

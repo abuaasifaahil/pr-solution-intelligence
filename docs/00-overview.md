@@ -110,3 +110,4 @@ Per Phase 1 spec §8 — these arrive later. Phase 1 ships only the contracts th
 | Backend deploy | Render | Hosts Node + Postgres + Redis in one place |
 | Dark mode | Deferred to Phase 6 | Light only for Phase 1 (HTML mockup is light-only) |
 | Modular context | `docs/phaseN.md` lazy-loaded | Avoids loading all 6 specs into every session |
+| Phase 3.5 (autonomy + adapters + skills) | SHIPPED 2026-06-01 | 10 endpoints, 3 tables, 6 WS events, +SearchAgent, +ADR 0001/0002/0003. See `docs/phase3.5-autonomy.md`. |
