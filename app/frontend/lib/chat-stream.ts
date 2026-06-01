@@ -12,7 +12,7 @@ export interface NewMessagePayload {
 }
 export interface ErrorPayload { assistantMessageId?: string; message: string }
 
-// ── Phase 2 (M7.4 / M7.5) — upload + flow event payloads ────────────────────
+// ── Phase 2 (M7.4 / M7.5 / M7.7) — upload + flow + processing payloads ─────
 export interface UploadProgressPayload {
   uploadId: string;
   percent: number;
@@ -34,6 +34,29 @@ export interface FlowStateChangePayload {
    *  strings here so the frontend doesn't have to import Prisma. */
   fromState: string;
   toState: string;
+  nextPrompt?: string | null;
+  chatId?: string;
+}
+
+/** Per-step pipeline event emitted by DataExtractAgent (M7.7). */
+export interface ProcessingStepPayload {
+  chatId: string;
+  stepName: string;
+  stepKey: string;
+  status: 'done' | 'failed';
+  /** Wall time of the step in ms. */
+  duration: number;
+  error?: string;
+}
+
+/** Terminal pipeline event emitted by DataExtractAgent (M7.7) after the
+ *  last step succeeds. */
+export interface ProcessingCompletePayload {
+  chatId: string;
+  totalArticles: number;
+  domains: number;
+  /** Total elapsed time across all steps, ms. */
+  totalTime: number;
 }
 
 export interface ChatStreamConfig {
@@ -53,10 +76,8 @@ type ServerEvent =
   | { type: 'upload:parsed'; payload: UploadParsedPayload }
   | { type: 'upload:error'; payload: UploadErrorPayload }
   | { type: 'flow:state-change'; payload: FlowStateChangePayload }
-  // M7.7-era events — wired by M7.9, but tolerated here so they don't
-  // produce noisy JSON-parse warnings on the console.
-  | { type: 'processing:step'; payload: unknown }
-  | { type: 'processing:complete'; payload: unknown };
+  | { type: 'processing:step'; payload: ProcessingStepPayload }
+  | { type: 'processing:complete'; payload: ProcessingCompletePayload };
 
 /**
  * Auto-reconnecting WebSocket client for /ws/chat/:chatId.
@@ -78,6 +99,8 @@ export class ChatStream {
   private uploadParsedHandlers: Array<(p: UploadParsedPayload) => void> = [];
   private uploadErrorHandlers: Array<(p: UploadErrorPayload) => void> = [];
   private flowStateHandlers: Array<(p: FlowStateChangePayload) => void> = [];
+  private processingStepHandlers: Array<(p: ProcessingStepPayload) => void> = [];
+  private processingCompleteHandlers: Array<(p: ProcessingCompletePayload) => void> = [];
 
   constructor(private readonly config: ChatStreamConfig) {}
 
@@ -138,6 +161,12 @@ export class ChatStream {
   onFlowStateChange(cb: (p: FlowStateChangePayload) => void): void {
     this.flowStateHandlers.push(cb);
   }
+  onProcessingStep(cb: (p: ProcessingStepPayload) => void): void {
+    this.processingStepHandlers.push(cb);
+  }
+  onProcessingComplete(cb: (p: ProcessingCompletePayload) => void): void {
+    this.processingCompleteHandlers.push(cb);
+  }
 
   private dispatch(evt: ServerEvent): void {
     switch (evt.type) {
@@ -168,11 +197,15 @@ export class ChatStream {
       case 'flow:state-change':
         for (const h of this.flowStateHandlers) h(evt.payload);
         return;
-      case 'agent:progress':
       case 'processing:step':
+        for (const h of this.processingStepHandlers) h(evt.payload);
+        return;
       case 'processing:complete':
-        // Wired by M7.9 (processing UX). Acknowledged here so unknown-type
-        // logs don't trip during the upload flow.
+        for (const h of this.processingCompleteHandlers) h(evt.payload);
+        return;
+      case 'agent:progress':
+        // Phase 1 / Phase 3 — Orchestrator + Strategy agents emit this. We
+        // don't surface it yet; future milestones can add a handler list.
         return;
     }
   }

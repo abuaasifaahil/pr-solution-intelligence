@@ -3,64 +3,37 @@
 /**
  * Phase 2 — Top-of-chat 9-dot progress indicator.
  *
- * Each dot represents one state in the conversational flow (M7.5). For
- * M7.8 the page just keeps the state at 'init'; M7.9 will hook it up to
- * the `flow:state-change` WS event.
+ * Each dot represents one state in the conversational flow (M7.5). M7.9
+ * promoted the literal union + labels into `lib/flow-states.ts`; this
+ * component is now a thin presentational shell over that source of truth.
  *
- * The string-union here mirrors `@prsi/shared/types/phase2`
- * `FlowStateLiteral`, kept locally so the frontend doesn't need to import
- * `@prisma/client` indirectly.
+ * `FlowStateLiteral` is re-exported for back-compat — existing callers that
+ * imported it from this module keep working, but new code should import
+ * from `lib/flow-states` directly.
  */
 
-export type FlowStateLiteral =
-  | 'init'
-  | 'collect_dates'
-  | 'collect_enrichment'
-  | 'collect_brand'
-  | 'collect_competitors'
-  | 'collect_intention'
-  | 'generate_query'
-  | 'processing'
-  | 'complete';
+import {
+  FLOW_STATES,
+  STATE_LABELS,
+  type FlowStateLiteral,
+} from '../../lib/flow-states';
 
-const STATES: FlowStateLiteral[] = [
-  'init',
-  'collect_dates',
-  'collect_enrichment',
-  'collect_brand',
-  'collect_competitors',
-  'collect_intention',
-  'generate_query',
-  'processing',
-  'complete',
-];
-
-const LABELS: Record<FlowStateLiteral, string> = {
-  init: 'Start',
-  collect_dates: 'Dates',
-  collect_enrichment: 'Enrichment',
-  collect_brand: 'Brand',
-  collect_competitors: 'Competitors',
-  collect_intention: 'Intention',
-  generate_query: 'Query',
-  processing: 'Process',
-  complete: 'Done',
-};
+export type { FlowStateLiteral };
 
 interface Props {
   currentState: FlowStateLiteral;
 }
 
 export function FlowDotIndicator({ currentState }: Props) {
-  const currentIdx = STATES.indexOf(currentState);
+  const currentIdx = FLOW_STATES.indexOf(currentState);
 
   return (
     <div className="flex items-center gap-1 px-4 py-2 border-b border-border-subtle bg-surface-card">
-      {STATES.map((s, i) => {
+      {FLOW_STATES.map((s, i) => {
         const status: 'done' | 'active' | 'pending' =
           i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending';
         return (
-          <div key={s} className="flex items-center gap-1" title={LABELS[s]}>
+          <div key={s} className="flex items-center gap-1" title={STATE_LABELS[s]}>
             <span
               className={[
                 'w-2 h-2 rounded-full transition-colors',
@@ -70,10 +43,10 @@ export function FlowDotIndicator({ currentState }: Props) {
                     ? 'bg-win-blue-500 animate-pulse'
                     : 'bg-border-default',
               ].join(' ')}
-              aria-label={`${LABELS[s]} ${status}`}
+              aria-label={`${STATE_LABELS[s]} ${status}`}
               data-state={status}
             />
-            {i < STATES.length - 1 && (
+            {i < FLOW_STATES.length - 1 && (
               <span
                 aria-hidden
                 className={[
@@ -85,7 +58,7 @@ export function FlowDotIndicator({ currentState }: Props) {
           </div>
         );
       })}
-      <span className="ml-3 text-text-tertiary text-xs">{LABELS[currentState] ?? '—'}</span>
+      <span className="ml-3 text-text-tertiary text-xs">{STATE_LABELS[currentState] ?? '—'}</span>
     </div>
   );
 }

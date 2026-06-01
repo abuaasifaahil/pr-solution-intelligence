@@ -6,8 +6,20 @@ import type { ChatActionOption, ChatActionResult } from './ChatActionPrompt';
 import { FileDropZone } from './FileDropZone';
 import { UploadProgressCard } from './UploadProgressCard';
 import { DataPreviewTable } from './DataPreviewTable';
+import { FlowStepPrompt } from './FlowStepPrompt';
+import { BooleanQueryPreview } from './BooleanQueryPreview';
+import { AgentActionPanel } from './AgentActionPanel';
 import type { ChatMessage, ChipDef } from '../../lib/chats';
 import type { UploadStatus, UploadPreview } from '../../lib/uploads';
+import type {
+  ChatParams,
+  CompetitorSet,
+  CompetitorSuggestions,
+} from '../../lib/chat-params';
+import type { BooleanQuery } from '../../lib/boolean-query';
+import type { FlowStateLiteral } from '../../lib/flow-states';
+import type { AgentStep } from './ProcessingSteps';
+import type { AgentActionResult } from './AgentActionPanel';
 
 interface Props {
   messages: ChatMessage[];
@@ -16,30 +28,47 @@ interface Props {
   busy?: boolean;
 
   // ── Phase 2 — upload state (M7.8) ────────────────────────────────────────
-  /** The current upload row from the API + WS. Null when no upload yet. */
   upload?: UploadStatus | null;
-  /** 0-100 from `upload:progress` WS events. */
   uploadProgress?: number;
-  /** First N parsed rows + columns from /uploads/:id/preview. */
   uploadPreview?: UploadPreview | null;
-  /** Called when the user drops / picks a file. */
   onFileDrop?: (file: File) => void;
-  /** Called when the user clicks × on the upload card. */
   onUploadRemove?: () => void;
-  /** Enables the empty-state drop zone. Off by default so the existing
-   *  Phase-1 chats render unchanged. */
+  /** Enables the empty-state drop zone. Off by default. */
   allowUpload?: boolean;
+
+  // ── Phase 2 — flow + query + processing state (M7.9) ─────────────────────
+  flowState?: FlowStateLiteral;
+  params?: ChatParams | null;
+  query?: BooleanQuery | null;
+  competitorSuggestions?: CompetitorSuggestions | null;
+  competitorsLoading?: boolean;
+  agentSteps?: AgentStep[];
+  agentResult?: AgentActionResult | null;
+  queryBusy?: boolean;
+  onDatePreset?: (preset: 'weekly' | 'ten_days' | 'twenty_days') => void;
+  onCustomDate?: (start: Date, end: Date) => void;
+  onEnrichmentPick?: (kind: 'standard' | 'reach', threshold?: number) => void;
+  onBrandSubmit?: (brand: string) => void;
+  onCompetitorsSubmit?: (competitors: string[], set: CompetitorSet) => void;
+  onIntentionPick?: (intention: 'intention_based' | 'comment_based') => void;
+  onQueryEdit?: (text: string) => void;
+  onQueryConfirm?: () => void;
 }
 
 /**
- * Renders the chat thread plus, when the last assistant message ships chips,
- * an inline ChatActionPrompt (Claude Code style). Picking a chip routes
- * through onChipPick; picking the auto-added "Other — type your own" row
- * routes through onCustomReply (free-text path).
+ * Renders the chat thread plus context-sensitive Phase 2 UI:
  *
- * Phase 2 additions (M7.8): renders a FileDropZone in the empty state, an
- * UploadProgressCard while a file is in flight, and a DataPreviewTable once
- * the parse worker has finished.
+ *   - File drop zone in the empty state.
+ *   - Upload progress / metadata card + data preview table while a file
+ *     is in flight or just landed (M7.8).
+ *   - Per-step inline prompts driven by `flowState` (M7.9) — the chip
+ *     flow.
+ *   - Boolean query preview at `generate_query` (M7.9).
+ *   - Agent action panel during/after `processing` (M7.9).
+ *
+ * The legacy Phase 1 ChatActionPrompt (orchestrator chips on the last
+ * assistant message) still renders alongside — both can coexist; the
+ * orchestrator is the M3 flow and Phase 2 is a separate state machine.
  */
 export function MessageThread({
   messages,
@@ -52,19 +81,41 @@ export function MessageThread({
   onFileDrop,
   onUploadRemove,
   allowUpload,
+  flowState,
+  params,
+  query,
+  competitorSuggestions,
+  competitorsLoading,
+  agentSteps,
+  agentResult,
+  queryBusy,
+  onDatePreset,
+  onCustomDate,
+  onEnrichmentPick,
+  onBrandSubmit,
+  onCompetitorsSubmit,
+  onIntentionPick,
+  onQueryEdit,
+  onQueryConfirm,
 }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, busy, upload?.status, uploadPreview]);
+  }, [
+    messages.length,
+    busy,
+    upload?.status,
+    uploadPreview,
+    flowState,
+    query?.id,
+    agentSteps,
+    agentResult,
+  ]);
 
   const last = messages[messages.length - 1];
   const lastChips: ChipDef[] = last?.role === 'assistant' ? (last.metadata.chips ?? []) : [];
 
-  // Map chips 1:1 to ChatActionOption. The prompt itself appends the
-  // "Other — type your own" row when allowCustom is true, so we don't add
-  // it here. New instance per chip-set so the prompt resets on each turn.
   const promptOptions = useMemo<ChatActionOption[]>(
     () => lastChips.map((c) => ({ id: c.value, label: c.label })),
     [lastChips],
@@ -81,6 +132,23 @@ export function MessageThread({
 
   const showDropZone =
     !!allowUpload && !!onFileDrop && messages.length === 0 && !upload;
+
+  // Phase 2 — which flow step needs a custom input component?
+  const flowStepStates: FlowStateLiteral[] = [
+    'collect_dates',
+    'collect_enrichment',
+    'collect_brand',
+    'collect_competitors',
+    'collect_intention',
+  ];
+  const showFlowStepPrompt =
+    flowState != null && flowStepStates.includes(flowState);
+  const showQueryPreview =
+    flowState === 'generate_query' && query != null;
+  const showAgentPanel =
+    (flowState === 'processing' || flowState === 'complete') &&
+    !!agentSteps &&
+    agentSteps.length > 0;
 
   return (
     <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3.5">
@@ -108,10 +176,44 @@ export function MessageThread({
         <FileDropZone onFile={onFileDrop} />
       )}
 
-      {!busy && promptOptions.length > 0 && (
+      {showFlowStepPrompt && flowState && (
+        <FlowStepPrompt
+          state={flowState}
+          params={params ?? null}
+          competitorSuggestions={competitorSuggestions ?? null}
+          competitorsLoading={competitorsLoading}
+          onDatePreset={onDatePreset ?? (() => {})}
+          onCustomDate={onCustomDate ?? (() => {})}
+          onEnrichmentPick={onEnrichmentPick ?? (() => {})}
+          onBrandSubmit={onBrandSubmit ?? (() => {})}
+          onCompetitorsSubmit={onCompetitorsSubmit ?? (() => {})}
+          onIntentionPick={onIntentionPick ?? (() => {})}
+        />
+      )}
+
+      {showQueryPreview && (
+        <BooleanQueryPreview
+          query={query ?? null}
+          onEdit={onQueryEdit ?? (() => {})}
+          onConfirm={onQueryConfirm ?? (() => {})}
+          busy={queryBusy}
+        />
+      )}
+
+      {showAgentPanel && agentSteps && (
+        <AgentActionPanel
+          agentName="Data Extract Agent"
+          steps={agentSteps}
+          result={agentResult ?? null}
+          // Open by default the moment the run completes; user can collapse.
+          defaultSummaryOpen={flowState === 'complete'}
+        />
+      )}
+
+      {/* Phase 1 — orchestrator chips on the latest assistant message. Only
+          render when no Phase 2 flow-step prompt is taking over the spot. */}
+      {!busy && promptOptions.length > 0 && !showFlowStepPrompt && (
         <div className="pl-10">
-          {/* `key` on the last message id ensures the prompt state resets
-              every assistant turn (fresh highlight + input draft). */}
           <ChatActionPrompt
             key={last?.id ?? 'none'}
             question="Pick a response — or choose 'Other' to type your own."
