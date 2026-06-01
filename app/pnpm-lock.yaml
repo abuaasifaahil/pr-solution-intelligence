@@ -59,6 +59,9 @@ importers:
       papaparse:
         specifier: 5.4.1
         version: 5.4.1
+      tiktoken:
+        specifier: 1.0.17
+        version: 1.0.17
       zod:
         specifier: 3.23.8
         version: 3.23.8
@@ -2693,6 +2696,9 @@ packages:
 
   thread-stream@3.1.0:
     resolution: {integrity: sha512-OqyPZ9u96VohAyMfJykzmivOrY2wfMSf3C5TtFJVgN+Hm6aj+voFhlK+kZEIv2FBh1X6Xp3DlnCOfEQ3B2J86A==}
+
+  tiktoken@1.0.17:
+    resolution: {integrity: sha512-UuFHqpy/DxOfNiC3otsqbx3oS6jr5uKdQhB/CvDEroZQbVHt+qAK+4JbIooabUWKU9g6PpsFylNu9Wcg4MxSGA==}
 
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
@@ -5792,6 +5798,8 @@ snapshots:
   thread-stream@3.1.0:
     dependencies:
       real-require: 0.2.0
+
+  tiktoken@1.0.17: {}
 
   tinybench@2.9.0: {}
 
