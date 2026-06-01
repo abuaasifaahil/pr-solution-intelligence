@@ -30,13 +30,8 @@
 import { patchParams, type PatchInput } from './chat-params.service.js';
 import { withUser } from '../lib/prisma-rls.js';
 import { sampleClassifier } from '../lib/sample-classifier.js';
-import { createAdapter } from '../data-sources/registry.js';
-import { resolveOpenSearchConfig } from '../data-sources/opensearch/config-resolver.js';
-import type {
-  AttachedSourceSnapshot,
-  ProbingResult,
-} from '../agents/probing-agent.js';
-import type { NormalizedArticle } from '../data-sources/adapter.js';
+import { collectAdapterSamples } from '../lib/source-snapshot.js';
+import type { ProbingResult } from '../agents/probing-agent.js';
 import type { Intent, IntentFieldKey } from '../types/intent.js';
 
 /** Single threshold per M9.4 spec — no per-field tuning. */
@@ -77,10 +72,6 @@ const SUPPLEMENT_BRAND_CONFIDENCE_THRESHOLD = 0.5;
  *  when the LLM left the field null. Slightly above the apply threshold
  *  so we don't promote tenuous heuristic guesses into chat_params. */
 const SUPPLEMENT_INFERRED_CONFIDENCE_FLOOR = 0.6;
-/** Cap on sample size pulled from each adapter. Matches the ProbingAgent
- *  contract ("up to ~25 rows"). */
-const SAMPLE_LIMIT = 25;
-
 /**
  * Apply non-null, sufficiently-confident Intent fields to chat_params.
  *
@@ -283,106 +274,6 @@ async function tryClassifierSupplement(
     // Best-effort. Never break chat creation.
     return null;
   }
-}
-
-/**
- * Build one `AttachedSourceSnapshot` per attached data source for the
- * chat. Today (pre-M9.11) there's at most ONE source per chat — encoded
- * in `chat_params.dataSource` + the optional upload. M9.11 will iterate
- * `chat_data_sources` instead.
- *
- * Returns an empty array when the resolved adapter can't produce a
- * sample (e.g. csv_upload without an uploaded file, or opensearch with
- * no resolvable config).
- */
-async function collectAdapterSamples(
-  userId: string,
-  chatId: string,
-): Promise<AttachedSourceSnapshot[]> {
-  const params = await withUser(userId, async (tx) =>
-    tx.chatParams.findUnique({ where: { chatId } }),
-  );
-  if (!params) return [];
-
-  // Synthetic source id — M9.11 will replace this with the row id from
-  // chat_data_sources. The classifier uses it only as an opaque tag.
-  const sourceId = `${chatId}:${params.dataSource}`;
-
-  // Build an "empty" structured query — sampling doesn't need the real
-  // boolean query and the adapters that read it (OS) accept a noop one.
-  const structured: import('../lib/boolean-query-engine.js').BooleanQueryStructured = {
-    brand: '',
-    brandFields: ['title'],
-    competitors: [],
-    competitorFields: ['content'],
-    dateRange: null,
-    language: 'en',
-  };
-
-  if (params.dataSource === 'csv_upload') {
-    if (!params.uploadId) return [];
-    const adapter = createAdapter({
-      kind: 'csv_upload',
-      config: { uploadId: params.uploadId },
-    });
-    const articles = await drainOneSampleBatch(adapter, {
-      userId,
-      chatId,
-      config: { uploadId: params.uploadId },
-      structured,
-      mediaTypes: [],
-      sampleLimit: SAMPLE_LIMIT,
-    });
-    return [
-      {
-        sourceId,
-        kind: 'csv_upload',
-        sampleArticles: articles,
-        declaredCapabilities: adapter.declaredCapabilities(),
-      },
-    ];
-  }
-
-  if (params.dataSource === 'opensearch') {
-    const osConfig = await resolveOpenSearchConfig(userId);
-    if (!osConfig) return [];
-    const adapter = createAdapter({ kind: 'opensearch', config: osConfig });
-    const articles = await drainOneSampleBatch(adapter, {
-      userId,
-      chatId,
-      config: osConfig,
-      structured,
-      mediaTypes: [],
-      sampleLimit: SAMPLE_LIMIT,
-    });
-    return [
-      {
-        sourceId,
-        kind: 'opensearch',
-        sampleArticles: articles,
-        declaredCapabilities: adapter.declaredCapabilities(),
-      },
-    ];
-  }
-
-  return [];
-}
-
-/**
- * Pull one sample batch out of an adapter's async iterable. Adapters in
- * sample mode yield a single batch then stop; we still drain defensively
- * in case a future adapter ignores the cap.
- */
-async function drainOneSampleBatch(
-  adapter: { fetch: (ctx: import('../data-sources/adapter.js').FetchContext) => AsyncIterable<{ articles: NormalizedArticle[] }> },
-  ctx: import('../data-sources/adapter.js').FetchContext,
-): Promise<NormalizedArticle[]> {
-  const out: NormalizedArticle[] = [];
-  for await (const batch of adapter.fetch(ctx)) {
-    out.push(...batch.articles);
-    if (out.length >= (ctx.sampleLimit ?? Number.MAX_SAFE_INTEGER)) break;
-  }
-  return out.slice(0, ctx.sampleLimit ?? out.length);
 }
 
 /**
