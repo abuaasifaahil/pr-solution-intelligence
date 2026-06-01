@@ -34,7 +34,10 @@ export type ChatEventType =
   //   reach-complete — merge into enrichments.reach JSONB done; coverage stats
   // The reach-* events fire INDEPENDENTLY of `enrichment:complete` (LLM side);
   // the frontend treats them as two separate signals and waits for both when
-  // enrichmentType=='reach'. The remaining `json-ready` lands with M8.7.
+  // enrichmentType=='reach'.
+  // M8.7 adds the terminal `json-ready` event emitted by GET /enrich/json
+  // the first time the dashboard JSON is computed for a chat. Phase 4
+  // listens for this to flip its ChipUp artifact into "ready" state.
   | 'enrichment:start'
   | 'enrichment:batch-start'
   | 'enrichment:batch-complete'
@@ -42,7 +45,8 @@ export type ChatEventType =
   | 'enrichment:progress'
   | 'enrichment:complete'
   | 'enrichment:reach-start'
-  | 'enrichment:reach-complete';
+  | 'enrichment:reach-complete'
+  | 'enrichment:json-ready';
 
 export interface ChatEvent {
   type: ChatEventType;
