@@ -34,12 +34,13 @@ export interface NormalizedArticle {
 
 /** CSV-relevant subset of the shared FIELD_ALIASES map. The CSV path does
  *  not consume a `publisherDomain` alias (it derives that from URL/source
- *  on its own), so we project the shared map down to the 8 keys the CSV
- *  normalizer needs.
+ *  on its own), nor `country` (added in M9.4.5 for the OpenSearch path
+ *  only — CSV currently has no country column), so we project the shared
+ *  map down to the 8 keys the CSV normalizer needs.
  *
  *  Kept exported as `COLUMN_ALIASES` for backwards compatibility with
  *  callers and tests written before M9.2 lifted the map. */
-type CsvAliasKey = Exclude<NormalizedFieldKey, 'publisherDomain'>;
+type CsvAliasKey = Exclude<NormalizedFieldKey, 'publisherDomain' | 'country'>;
 export const COLUMN_ALIASES: Record<CsvAliasKey, readonly string[]> = {
   title: FIELD_ALIASES.title,
   content: FIELD_ALIASES.content,

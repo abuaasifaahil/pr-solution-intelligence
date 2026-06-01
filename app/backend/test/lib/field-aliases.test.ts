@@ -19,14 +19,16 @@ const CANONICAL_KEYS: NormalizedFieldKey[] = [
   'url',
   'publisherDomain',
   'language',
+  'country',
 ];
 
 describe('FIELD_ALIASES', () => {
-  it('contains all 9 canonical keys', () => {
+  it('contains all 10 canonical keys', () => {
     for (const key of CANONICAL_KEYS) {
       expect(FIELD_ALIASES).toHaveProperty(key);
     }
     expect(Object.keys(FIELD_ALIASES).sort()).toEqual([...CANONICAL_KEYS].sort());
+    expect(CANONICAL_KEYS.length).toBe(10);
   });
 
   it('every alias array contains at least one entry', () => {
@@ -97,5 +99,16 @@ describe('FIELD_ALIASES', () => {
       const unique = new Set(lowered);
       expect(unique.size).toBe(lowered.length);
     }
+  });
+
+  // ───── M9.4.5: country added ─────
+
+  it('country key has 4 aliases including `country_code`', () => {
+    expect(FIELD_ALIASES.country).toBeDefined();
+    expect(FIELD_ALIASES.country.length).toBe(4);
+    expect(FIELD_ALIASES.country).toContain('country');
+    expect(FIELD_ALIASES.country).toContain('country_code');
+    expect(FIELD_ALIASES.country).toContain('iso_country');
+    expect(FIELD_ALIASES.country).toContain('geo_country');
   });
 });
