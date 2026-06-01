@@ -24,6 +24,7 @@ import { AgentRegistry } from './agents/agent-registry.js';
 import { startInlineWorker } from './lib/queue.js';
 import { parseUploadProcessor } from './workers/parse-upload.worker.js';
 import { dataExtractProcessor } from './workers/data-extract.worker.js';
+import { enrichBatchProcessor } from './workers/enrich-batch.worker.js';
 import { prisma } from '@prsi/shared/db';
 
 declare module 'fastify' {
@@ -127,6 +128,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     const PROCESSORS: Record<string, Processor> = {
       'parse-upload': parseUploadProcessor as Processor,
       'data-extract': dataExtractProcessor as Processor,
+      'enrich-batch': enrichBatchProcessor as Processor,
     };
     startInlineWorker(async (job, token) => {
       const processor = PROCESSORS[job.name];

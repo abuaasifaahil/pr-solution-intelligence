@@ -21,10 +21,21 @@ export type ChatEventType =
   | 'processing:step'
   | 'processing:complete'
   // Phase 3 — EnrichmentAgent (M8.4) announces that batching is planned and
-  // per-batch jobs are about to land. The full 8-event set (`batch-*`,
-  // `progress`, `complete`, `reach-*`, `json-ready`) lands with M8.5–M8.7;
-  // M8.4 only emits the start event.
-  | 'enrichment:start';
+  // per-batch jobs are about to land. M8.5 adds the per-batch lifecycle
+  // events emitted by the EnrichBatchWorker:
+  //   batch-start    — worker begins processing a batch (LLM call about to fire)
+  //   batch-complete — batch wrote N enrichment rows, captured token usage
+  //   batch-error    — batch threw; payload.retrying flags whether BullMQ
+  //                    will retry (retry_count ≤ MAX_RETRIES) or give up
+  //   progress       — running tally toward the job total, percent included
+  //   complete       — final job-level event after the last batch settles
+  // The remaining `reach-*` / `json-ready` set lands with M8.6 / M8.7.
+  | 'enrichment:start'
+  | 'enrichment:batch-start'
+  | 'enrichment:batch-complete'
+  | 'enrichment:batch-error'
+  | 'enrichment:progress'
+  | 'enrichment:complete';
 
 export interface ChatEvent {
   type: ChatEventType;
