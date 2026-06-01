@@ -20,6 +20,8 @@ import { wsRoutes } from './routes/ws.routes.js';
 import { probeRoutes } from './routes/probe.routes.js';
 import { userAgentRoutes } from './routes/user-agent.routes.js';
 import { composableSkillRoutes } from './routes/composable-skill.routes.js';
+// ── M9.9 (Phase 3.5) — OpenSearch connection probe ──
+import { openSearchRoutes } from './routes/opensearch.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { DataExtractAgent } from './agents/data-extract.agent.js';
@@ -158,6 +160,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(probeRoutes);
   await app.register(userAgentRoutes);
   await app.register(composableSkillRoutes);
+  await app.register(openSearchRoutes);
 
   // Boot the BullMQ inline worker. Phase 2 jobs register their processors
   // via the PROCESSORS map below; today there are none registered (M7.4 will

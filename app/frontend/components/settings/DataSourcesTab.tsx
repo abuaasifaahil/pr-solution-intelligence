@@ -5,6 +5,7 @@ import {
   deleteDataSource, testDataSource,
   type DataSource, type DataSourceType, type DataSourceTestResult,
 } from '../../lib/settings';
+import { OpenSearchOverridePanel } from './OpenSearchOverridePanel';
 
 const SOURCE_LABELS: Record<DataSourceType, string> = {
   meltwater: 'Meltwater',
@@ -29,6 +30,20 @@ export function DataSourcesTab() {
 
   async function reload() { setRows(await listDataSources()); }
 
+  // M9.9: hide the OpenSearch override row from the generic data-source
+  // card grid — `OpenSearchOverridePanel` owns its presentation. We
+  // identify it the same way the backend resolver does:
+  // sourceType==='custom' && config.kind==='opensearch'.
+  function isOpenSearchOverride(r: DataSource): boolean {
+    return (
+      r.sourceType === 'custom' &&
+      typeof r.config === 'object' &&
+      r.config !== null &&
+      (r.config as { kind?: unknown }).kind === 'opensearch'
+    );
+  }
+  const visibleRows = rows.filter((r) => !isOpenSearchOverride(r));
+
   return (
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-5">
@@ -47,23 +62,25 @@ export function DataSourcesTab() {
         </button>
       </div>
 
+      <OpenSearchOverridePanel />
+
       {loading && <div className="text-sm text-text-tertiary">Loading…</div>}
-      {!loading && rows.length === 0 && (
+      {!loading && visibleRows.length === 0 && (
         <div className="text-sm text-text-tertiary border border-dashed border-border-default
                         rounded-md p-6 text-center">
-          No data sources configured yet. Click <strong>Add Source</strong> above to begin.
+          No third-party data sources configured yet. Click <strong>Add Source</strong> above to begin.
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {rows.map((row) => (
+        {visibleRows.map((row) => (
           <DataSourceCard key={row.id} row={row} onChanged={reload} />
         ))}
       </div>
 
       {addOpen && (
         <AddSourceModal
-          existing={rows.map((r) => r.sourceType)}
+          existing={visibleRows.map((r) => r.sourceType)}
           onClose={() => setAddOpen(false)}
           onCreated={async () => { setAddOpen(false); await reload(); }}
         />
