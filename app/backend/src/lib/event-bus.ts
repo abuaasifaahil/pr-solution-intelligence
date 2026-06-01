@@ -11,7 +11,10 @@ export type ChatEventType =
   // Phase 2 — upload pipeline (M7.4) emits these on the chat channel so the
   // frontend can react when a queued parse-upload job lands or fails.
   | 'upload:parsed'
-  | 'upload:error';
+  | 'upload:error'
+  // Phase 2 — conversational flow engine (M7.5) emits this when chat_params
+  // advances through the 9-state machine.
+  | 'flow:state-change';
 
 export interface ChatEvent {
   type: ChatEventType;
