@@ -17,6 +17,7 @@ import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { AgentRegistry } from './agents/agent-registry.js';
 import { startInlineWorker } from './lib/queue.js';
+import { parseUploadProcessor } from './workers/parse-upload.worker.js';
 import { prisma } from '@prsi/shared/db';
 
 declare module 'fastify' {
@@ -85,7 +86,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   // they don't need; queue tests open their own connections explicitly.
   if (process.env.NODE_ENV !== 'test') {
     const PROCESSORS: Record<string, Processor> = {
-      // M7.4 will add: 'parse-upload': parseUploadProcessor
+      'parse-upload': parseUploadProcessor as Processor,
     };
     startInlineWorker(async (job, token) => {
       const processor = PROCESSORS[job.name];

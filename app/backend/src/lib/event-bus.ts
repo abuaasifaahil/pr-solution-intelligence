@@ -7,7 +7,11 @@ export type ChatEventType =
   | 'message:chunk'
   | 'message:new'
   | 'agent:progress'
-  | 'error';
+  | 'error'
+  // Phase 2 — upload pipeline (M7.4) emits these on the chat channel so the
+  // frontend can react when a queued parse-upload job lands or fails.
+  | 'upload:parsed'
+  | 'upload:error';
 
 export interface ChatEvent {
   type: ChatEventType;
