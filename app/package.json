@@ -26,5 +26,14 @@
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=11.4.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "bcrypt",
+      "prisma",
+      "msgpackr-extract"
+    ]
   }
 }
