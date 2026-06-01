@@ -34,6 +34,25 @@ const EnvSchema = z.object({
   // Phase 2 — Queue (BullMQ). Reuses existing REDIS_URL; no new connection string.
   QUEUE_CONCURRENCY: z.coerce.number().int().positive().default(2),
   QUEUE_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+
+  // Phase 3.5 — OpenSearch (autonomous article fetching).
+  //
+  // All five connection vars are `.optional()` so the backend boots cleanly
+  // when OpenSearch isn't configured — Phase 1/2/3 paths don't need it.
+  // The DataExtractAgent (M9.5) checks `hasOpenSearchConfig()` and falls
+  // back to CSV upload when missing.
+  OPENSEARCH_URL: z.string().url().optional(),
+  OPENSEARCH_USERNAME: z.string().optional(),
+  OPENSEARCH_PASSWORD: z.string().optional(),
+  OPENSEARCH_INDEX_NAME: z.string().default('amx-data*'),
+  OPENSEARCH_INDEX_TYPE: z.enum(['daywise', 'monthwise', 'single']).default('daywise'),
+  // Tuning knobs — sensible defaults so devs don't need to set them locally.
+  OPENSEARCH_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  OPENSEARCH_PAGE_SIZE: z.coerce.number().int().positive().default(500),
+  OPENSEARCH_MAX_PAGES: z.coerce.number().int().positive().default(20),
+  OPENSEARCH_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  OPENSEARCH_PATTERN_OF_INDEX: z.string().default('YYYY-MM-DD'),
+  OPENSEARCH_FIELDS_FOR_QUERY: z.string().default('title,content,description,summary'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -49,4 +68,13 @@ export function loadEnv(): Env {
   }
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * True when OpenSearch is configured well enough to fetch articles
+ * (URL + basic-auth credentials present). Used by DataExtractAgent's
+ * opensearch path (M9.5) and the `/opensearch/probe` endpoint (M9.7).
+ */
+export function hasOpenSearchConfig(env: Env = loadEnv()): boolean {
+  return !!(env.OPENSEARCH_URL && env.OPENSEARCH_USERNAME && env.OPENSEARCH_PASSWORD);
 }
