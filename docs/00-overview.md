@@ -48,6 +48,7 @@ When a decision spans phases, it lives in `docs/adr/` (not in a phase digest):
 |---|---|---|
 | [0001](adr/0001-data-source-adapter.md) | Data-source adapter pattern + multi-source per chat | Accepted 2026-06-01 |
 | [0002](adr/0002-skill-composition.md) | Skill-first composition (replacing fixed-agent dropdown) | Accepted 2026-06-01 |
+| [0003](adr/0003-chat-entry-composition.md) | 8 chat-entry patterns + agent-as-prober + per-user authoring | Accepted 2026-06-01 |
 
 Adding a new ADR: see `docs/adr/README.md`.
 

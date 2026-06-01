@@ -6,6 +6,7 @@ Each ADR captures one architectural decision that cuts across phases, the altern
 |---|---|---|---|
 | [0001](./0001-data-source-adapter.md) | Data-source adapter pattern + multi-source per chat | Accepted 2026-06-01 | 3.5, 4, 5, 5.5 |
 | [0002](./0002-skill-composition.md) | Skill-first composition (replacing fixed-agent dropdown) | Accepted 2026-06-01 | 5, 5.5, 6, 7 (new) |
+| [0003](./0003-chat-entry-composition.md) | 8 chat-entry patterns + agent-as-prober + per-user authoring | Accepted 2026-06-01 | 3.5, 4, 5, 5.5, 6, 7 |
 
 ## When to write a new ADR
 
