@@ -1,16 +1,25 @@
 /**
  * OpenSearch client factory + connection probe + prod-aligned search wrapper.
  *
- * Returns a singleton `@opensearch-project/opensearch` Client when config is
- * present; throws a clear error otherwise. DataExtractAgent's opensearch
- * path (M9.5) calls `getOpenSearchClient()`; M9.7's `/opensearch/probe`
- * endpoint calls `probeOpenSearch()`.
+ * Two client surfaces:
+ *
+ *  - `getOpenSearchClient()` returns a SINGLE client built from the
+ *    platform env vars. This is the legacy entry point used by the
+ *    `/opensearch/probe` route and the no-override search path.
+ *
+ *  - `getOpenSearchClientForConfig({url, username, password, ...})`
+ *    returns an LRU-cached client keyed on `(url, username)`. M9.6a uses
+ *    this when an OpenSearchAdapter receives a user-resolved config so
+ *    user A's call never reuses user B's client.
  *
  * The `search()` helper (M9.1.2) mirrors the AlphaMetricX production
- * retry/backoff/cache/preference behavior — see its docstring.
+ * retry/backoff/cache/preference behavior. It accepts an optional
+ * `config` arg — when omitted it falls through to the env-config client
+ * (preserves all pre-M9.6a callers + tests).
  *
  * Boot posture: this module is import-safe even when OpenSearch isn't
- * configured. The Client is only constructed lazily on first `get` call.
+ * configured. The default Client is only constructed lazily on first
+ * `get` call.
  *
  * @file lib/opensearch-client.ts
  */
@@ -20,8 +29,8 @@ import { loadEnv, hasOpenSearchConfig } from '../env.js';
 let cachedClient: Client | undefined;
 
 /**
- * Returns the cached OpenSearch client, constructing it on first call.
- * Throws when URL/username/password aren't all set — call
+ * Returns the cached OpenSearch client built from env, constructing it
+ * on first call. Throws when URL/username/password aren't all set — call
  * `hasOpenSearchConfig()` first if you need to branch.
  */
 export function getOpenSearchClient(): Client {
@@ -45,6 +54,91 @@ export function getOpenSearchClient(): Client {
     },
   });
   return cachedClient;
+}
+
+/**
+ * Minimal per-config shape the LRU-cached client builder needs. Mirrors
+ * the resolved shape `data-sources/opensearch/config-resolver.ts`
+ * produces, but typed locally to avoid importing from `data-sources/`
+ * (the client lib lives below the data-sources package; reverse imports
+ * would create a cycle).
+ */
+export interface ClientConfig {
+  url: string;
+  username: string;
+  password: string;
+}
+
+/**
+ * LRU cache for per-config clients. Keyed on `(url, username)` so two
+ * users with different creds for the same cluster get DIFFERENT clients
+ * (avoids accidentally reusing the wrong auth header). Cap at 100
+ * entries with a 1-hour TTL — well above any plausible per-pod
+ * concurrent-user count, far below memory pressure.
+ *
+ * NOT exported. M9.6a callers go through `getOpenSearchClientForConfig`.
+ */
+const CLIENT_CACHE_MAX = 100;
+const CLIENT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+interface CacheEntry {
+  client: Client;
+  createdAt: number;
+}
+
+const perConfigCache = new Map<string, CacheEntry>();
+
+function configKey(c: ClientConfig): string {
+  // username + url uniquely identifies a client. Password changes don't
+  // need a fresh client (the SDK reads the credential on each request),
+  // BUT cache invalidation when a user rotates a password is a Phase 6
+  // concern. M9.6a punts: rotating a password requires a pod restart
+  // OR waiting for the 1h TTL.
+  return `${c.username}@${c.url}`;
+}
+
+function evictExpired(): void {
+  const now = Date.now();
+  for (const [k, v] of perConfigCache) {
+    if (now - v.createdAt > CLIENT_CACHE_TTL_MS) perConfigCache.delete(k);
+  }
+}
+
+function evictLruIfFull(): void {
+  if (perConfigCache.size < CLIENT_CACHE_MAX) return;
+  // Map preserves insertion order; the first key is the oldest. We
+  // re-insert on hit (see getOpenSearchClientForConfig) so MRU stays at
+  // the tail and LRU at the head — basic LRU semantics without an
+  // external dep.
+  const oldest = perConfigCache.keys().next().value;
+  if (oldest !== undefined) perConfigCache.delete(oldest);
+}
+
+/**
+ * Returns an LRU-cached client for a SPECIFIC (url, username, password)
+ * tuple. Used by the OpenSearchAdapter when a user-resolved config
+ * differs from the platform env.
+ */
+export function getOpenSearchClientForConfig(c: ClientConfig): Client {
+  evictExpired();
+  const key = configKey(c);
+  const existing = perConfigCache.get(key);
+  if (existing) {
+    // Re-insert to mark as most-recently-used (LRU semantics).
+    perConfigCache.delete(key);
+    perConfigCache.set(key, existing);
+    return existing.client;
+  }
+  evictLruIfFull();
+  const env = loadEnv();
+  const client = new Client({
+    node: c.url,
+    auth: { username: c.username, password: c.password },
+    requestTimeout: env.OPENSEARCH_TIMEOUT_MS,
+    ssl: { rejectUnauthorized: true },
+  });
+  perConfigCache.set(key, { client, createdAt: Date.now() });
+  return client;
 }
 
 /** Result of a `probeOpenSearch()` call. Never throws — failure goes in `error`. */
@@ -104,11 +198,16 @@ export async function probeOpenSearch(): Promise<ProbeResult> {
  * per-request HTTP timeout; the body-level `timeout` parameter tells the
  * cluster how long it may spend executing the query before returning a
  * partial response. Prod sets both to 300s, so we do too.
+ *
+ * `config` (M9.6a) — when supplied, the request runs against the LRU-cached
+ * per-config client instead of the env-configured one. Used by the
+ * OpenSearchAdapter for per-user / chat-attached overrides.
  */
 export interface SearchOptions {
   indices: string[];
   body: Record<string, unknown>;
   requestTimeoutMs?: number;
+  config?: ClientConfig;
 }
 
 export interface SearchOutcome<TSource = Record<string, unknown>> {
@@ -138,7 +237,9 @@ export async function search<TSource = Record<string, unknown>>(
   opts: SearchOptions,
 ): Promise<SearchOutcome<TSource>> {
   const env = loadEnv();
-  const client = getOpenSearchClient();
+  const client = opts.config
+    ? getOpenSearchClientForConfig(opts.config)
+    : getOpenSearchClient();
   const start = Date.now();
   const retries = env.OPENSEARCH_RETRIES;
   const backoff = env.OPENSEARCH_RETRY_BACKOFF_FACTOR;
@@ -233,7 +334,8 @@ function extractStatus(err: unknown): number | undefined {
   return undefined;
 }
 
-/** Test-only: clear the cached client so subsequent `getOpenSearchClient()` rebuilds. */
+/** Test-only: clear ALL cached clients so subsequent gets rebuild. */
 export function _resetOpenSearchClientForTests(): void {
   cachedClient = undefined;
+  perConfigCache.clear();
 }

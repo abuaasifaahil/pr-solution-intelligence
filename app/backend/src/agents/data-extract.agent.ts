@@ -1,32 +1,47 @@
 /**
- * Phase 2 DataExtractAgent — M7.7.
+ * Phase 2 → Phase 3.5 (M9.6a) — DataExtractAgent.
  *
- * Consumes `data-extract` BullMQ jobs (enqueued by M7.6's `confirmQuery`) and
- * drives the 7-step processing visualization that the frontend renders during
- * the `processing` flow state.
+ * Thin lifecycle wrapper around `CsvUploadAdapter` (per ADR-0001's
+ * adapter pattern). The 7-step UX visualization stays here — those
+ * steps are the M7.7 acceptance criteria — but the adapter now owns
+ * the canonical NormalizedArticle surface, so future multi-source
+ * orchestration (M9.11) can read CSV + OpenSearch + Crawler from the
+ * same iterable shape.
+ *
+ * In the CSV path the heavy lifting (parse + normalize + bulk-insert)
+ * already runs in `workers/parse-upload.worker.ts` BEFORE this agent
+ * runs. DataExtractAgent's role is the 7-step verification, the
+ * `processing:*` WS event stream, the flow-state handoff, and the
+ * cross-agent enrichment dispatch. None of that surface area changes
+ * in M9.6a — the existing 39+ tests pass unchanged.
+ *
+ * The adapter is constructed in `reason()` so its
+ * `declaredCapabilities()` can be surfaced to M9.11's future
+ * SourceOrchestrator. The 7-step pipeline does NOT iterate the
+ * adapter's fetch() in M9.6a (the rows are already in the DB); that
+ * lives behind a TODO for M9.11 when capability detection runs on the
+ * merged pool.
  *
  * Lifecycle (extends BaseAgent per Phase 2 spec §5.4):
  *   perceive — load chat_params + confirmed boolean_query + upload metadata
- *   reason   — select strategy (csv_upload | api_crawl); Phase 2 only supports
- *              csv_upload (api_crawl deferred to Phase 2+)
- *   plan     — fix the 7-step pipeline order
+ *   reason   — select strategy (csv_upload | api_crawl) + build adapter
+ *   plan     — fix the 7-step pipeline order; capture declared capabilities
  *   act      — walk each step, emitting `processing:step` per step and a
  *              final `processing:complete`; advance chat_params.flowState
  *              to 'complete' at the handoff step
- *   reflect  — log a warning if domain extraction rate < 90% (Learning
- *              Agent in Phase 5 will pick this up)
- *
- * The actual parse + insert work was already done by M7.4's ParseUploadWorker.
- * M7.7's role is the UX visualization (the user sees the spec's 7-step
- * progress bar) plus quality verification + flow-state handoff. The
- * underlying mechanics are pipelined for speed: M7.4 streams rows into
- * articles up-front so M7.7 can run cheap verifications per step.
+ *   reflect  — log a warning if domain extraction rate < 90% (Phase 5
+ *              Learning Agent will consume)
  *
  * @file agents/data-extract.agent.ts
  */
 import { BaseAgent, type AgentInput } from './base-agent.js';
 import { publishChatEvent, publishAgentBus } from '../lib/event-bus.js';
 import { withUser } from '../lib/prisma-rls.js';
+import { createAdapter } from '../data-sources/registry.js';
+import type {
+  DataSourceAdapter,
+  DeclaredCapabilities,
+} from '../data-sources/adapter.js';
 
 interface DataExtractInput extends AgentInput {
   metadata: {
@@ -50,12 +65,16 @@ interface Reasoned {
   strategy: 'csv_upload' | 'api_crawl';
   estimatedArticles: number;
   ctx: PerceivedContext;
+  /** Adapter constructed for the resolved strategy. Surfaced into
+   *  `plan` for capability inspection; not iterated in M9.6a. */
+  adapter: DataSourceAdapter | null;
 }
 
 interface PlanItem {
   ctx: PerceivedContext;
   strategy: 'csv_upload' | 'api_crawl';
   steps: Array<{ name: string; key: string }>;
+  capabilities: DeclaredCapabilities | null;
 }
 
 export interface DataExtractResult {
@@ -138,16 +157,31 @@ export class DataExtractAgent extends BaseAgent {
         'Phase 2 only supports CSV upload path; API crawl deferred to Phase 2+',
       );
     }
+    // M9.6a — build the CsvUploadAdapter. Its declaredCapabilities()
+    // feed M9.11's planning step. We don't iterate fetch() in M9.6a
+    // because the parse-upload worker has already inserted the rows;
+    // the adapter exposes those same rows on demand for future
+    // multi-source merging.
+    const adapter = createAdapter({
+      kind: 'csv_upload',
+      config: { uploadId: ctx.uploadId },
+    });
     return {
       strategy: 'csv_upload',
       estimatedArticles: ctx.articleCount,
       ctx,
+      adapter,
     };
   }
 
   async plan(goalIn: unknown): Promise<PlanItem> {
-    const { strategy, ctx } = goalIn as Reasoned;
-    return { ctx, strategy, steps: PIPELINE_STEPS };
+    const { strategy, ctx, adapter } = goalIn as Reasoned;
+    return {
+      ctx,
+      strategy,
+      steps: PIPELINE_STEPS,
+      capabilities: adapter ? adapter.declaredCapabilities() : null,
+    };
   }
 
   async act(planIn: unknown): Promise<DataExtractResult> {

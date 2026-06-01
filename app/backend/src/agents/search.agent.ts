@@ -1,47 +1,35 @@
 /**
- * Phase 3.5 (M9.5) — SearchAgent.
+ * Phase 3.5 (M9.5 → M9.6a) — SearchAgent.
  *
- * Fetches articles from OpenSearch when `chat_params.data_source ==
- * 'opensearch'` and the boolean query has been confirmed. The autonomy
- * primitive of Phase 3.5: it pages the cluster, persists the rows to
- * `articles`, detects whether reach is present, records the run in
- * `search_history` for memory, and hands off to EnrichmentAgent with
- * the source-aware payload from M9.4.5.
+ * Thin lifecycle wrapper around `OpenSearchAdapter` (per ADR-0001's
+ * adapter pattern). M9.5 fetch logic — the search_after pagination loop,
+ * the DSL build, the index resolve, and the `mapHitToArticle` call —
+ * moved into `data-sources/opensearch/opensearch.adapter.ts`. The agent
+ * now:
  *
- * Lifecycle (Phase 1 §5.4):
- *   perceive — load chat_params + boolean_queries row + structured query;
- *              check search_history cache (log only, no short-circuit yet)
- *   reason   — resolve indices (M9.1.2) and build the DSL (M9.1)
- *   plan     — fix the per-page DSL builder + cap pages at OPENSEARCH_MAX_PAGES
- *   act      — pagination loop with search_after; per-page bulk insert
- *              (M9.5 article-bulk-insert.service); emit search:progress
- *              every page; emit search:fetched when the loop terminates
- *   reflect  — run field-presence detector on the first batch; when
- *              reach coverage < 80% AND enrichmentType == 'standard' the
- *              agent pauses, emits `reach:absent`, and stops short of
- *              the EnrichmentAgent dispatch. M9.5.5 wires the chat-state
- *              probe; M9.5 just stops cleanly.
- *   learn    — record one row in search_history regardless of pause or
- *              completion, so the memory contract holds for the next
- *              re-execution attempt
+ *   - resolves the OpenSearch config (chat-attached > user M5 > env)
+ *   - constructs the adapter via the registry
+ *   - iterates the adapter's fetch() async iterable
+ *   - bulk-inserts each yielded batch
+ *   - emits the same `search:*` WS events the M9.5 contract guarantees
+ *   - hands off to EnrichmentAgent on completion (or pauses for the
+ *     M9.5.5 reach probe)
+ *
+ * BaseAgent lifecycle (unchanged externally):
+ *   perceive — load chat_params + boolean_queries; check search_history
+ *   reason   — resolve OS config; instantiate the adapter
+ *   plan     — capture declared capabilities (planning hint for M9.11+)
+ *   act      — drive adapter.fetch(); bulk-insert; emit `search:*`
+ *   reflect  — presence detection + M9.5.5 reach-probe gate
+ *   learn    — search_history write + handoff dispatch
  *
  * Sentinel UUID: `00000000-0000-0000-0000-00000053ea4c` (53ea4c ~ "Search").
- * Singleton — no `agents` table row; `logAction` is overridden to no-op
- * (matches the M7.7 / M8.4 pattern).
- *
- * The agent is dispatched by the `data-extract` BullMQ worker (M9.5
- * branches the worker on `chat_params.dataSource`), not via a new
- * queue — that keeps the M7.6 `confirmQuery` trigger contract intact.
  *
  * @file backend/src/agents/search.agent.ts
  */
 import { BaseAgent, type AgentInput } from './base-agent.js';
 import { withUser } from '../lib/prisma-rls.js';
 import { publishAgentBus, publishChatEvent } from '../lib/event-bus.js';
-import { resolveIndices } from '../lib/opensearch-indices.js';
-import { buildOpenSearchDsl } from '../lib/opensearch-dsl.js';
-import { mapHitToArticle, type NormalizedArticleFields } from '../lib/opensearch-mapping.js';
-import { search } from '../lib/opensearch-client.js';
 import { detectFieldPresence } from '../lib/field-presence-detector.js';
 import { hashSearchQuery } from '../lib/query-hash.js';
 import {
@@ -53,9 +41,17 @@ import {
   recordSearchExecution,
 } from '../services/search-history.service.js';
 import { enterReachProbe } from '../services/reach-probe.service.js';
-import { hasOpenSearchConfig, loadEnv } from '../env.js';
+import { hasOpenSearchConfig } from '../env.js';
 import { MediaTypeSchema, type MediaType } from '../lib/media-types.js';
 import type { BooleanQueryStructured } from '../lib/boolean-query-engine.js';
+import { resolveOpenSearchConfig } from '../data-sources/opensearch/config-resolver.js';
+import { createAdapter } from '../data-sources/registry.js';
+import type {
+  DataSourceAdapter,
+  DeclaredCapabilities,
+  NormalizedArticle,
+} from '../data-sources/adapter.js';
+import type { NormalizedArticleFields } from '../lib/opensearch-mapping.js';
 
 /** Reach coverage below this fraction → emit `reach:absent` and pause. */
 const PRESENCE_THRESHOLD = 0.8;
@@ -87,16 +83,13 @@ interface PerceivedContext {
 
 interface Reasoned {
   ctx: PerceivedContext;
-  indices: string[];
-  pageSize: number;
-  maxPages: number;
+  adapter: DataSourceAdapter;
 }
 
 interface PlanItem {
   ctx: PerceivedContext;
-  indices: string[];
-  pageSize: number;
-  maxPages: number;
+  adapter: DataSourceAdapter;
+  capabilities: DeclaredCapabilities;
 }
 
 export interface SearchAgentResult {
@@ -121,10 +114,8 @@ export interface SearchAgentResult {
 }
 
 /**
- * Errors raised by `search()` (M9.1.2) inside the agent loop bubble up
- * here. We classify them once for the `search:error` payload so the
- * frontend can surface a friendly message without parsing exception
- * strings client-side.
+ * Errors raised by the adapter's underlying `search()` retry wrapper
+ * bubble up here. We classify them once for the `search:error` payload.
  */
 function classifySearchError(err: unknown): {
   message: string;
@@ -134,6 +125,54 @@ function classifySearchError(err: unknown): {
     return { message: err.message };
   }
   return { message: 'OpenSearch search failed.' };
+}
+
+/**
+ * Convert a `NormalizedArticle` from the adapter back to the
+ * `ArticleRowForInsert` shape the bulk-insert service consumes. They're
+ * almost identical — `openSearchId` (used by the unique index) maps from
+ * the canonical `sourceArticleId`.
+ */
+function toArticleRow(a: NormalizedArticle): ArticleRowForInsert {
+  return {
+    title: a.title,
+    content: a.content,
+    description: a.description,
+    source: a.source,
+    author: a.author,
+    publishedDate: a.publishedDate,
+    url: a.url,
+    publisherDomain: a.publisherDomain,
+    language: a.language,
+    country: a.country,
+    reach: a.reach,
+    sources: a.sources,
+    rawData: a.rawData,
+    openSearchId: a.sourceArticleId,
+  };
+}
+
+/**
+ * Project a `NormalizedArticle` to the `NormalizedArticleFields` shape
+ * `detectFieldPresence` consumes. Drops the adapter-specific
+ * `sourceArticleId` / `sourceKind` fields so presence detection runs on
+ * the canonical 13-field surface only.
+ */
+function toPresenceFields(a: NormalizedArticle): NormalizedArticleFields {
+  return {
+    title: a.title,
+    content: a.content,
+    description: a.description,
+    source: a.source,
+    author: a.author,
+    publishedDate: a.publishedDate,
+    url: a.url,
+    publisherDomain: a.publisherDomain,
+    language: a.language,
+    country: a.country,
+    reach: a.reach,
+    sources: a.sources,
+  };
 }
 
 export class SearchAgent extends BaseAgent {
@@ -231,84 +270,81 @@ export class SearchAgent extends BaseAgent {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // reason
+  // reason — resolve config + build adapter
   // ─────────────────────────────────────────────────────────────────────
 
   async reason(ctxIn: unknown): Promise<Reasoned> {
     const ctx = ctxIn as PerceivedContext;
-    const env = loadEnv();
 
-    // resolveIndices accepts `mediaTypes: null` as "use all 11 types".
-    // chat_params.mediaTypes==[] is the "no override" sentinel — pass null
-    // so the resolver falls through to env defaults.
-    const dateRange =
-      ctx.structured.dateRange != null
-        ? {
-            start: new Date(ctx.structured.dateRange.start),
-            end: new Date(ctx.structured.dateRange.end),
-          }
-        : null;
-    const mediaTypes = ctx.mediaTypes.length > 0 ? ctx.mediaTypes : null;
+    // Resolve OpenSearch config with chat-attached > user M5 > env
+    // precedence. M9.6a always passes undefined for chat-attached
+    // (M9.11 will plumb chat_data_sources.source_config through).
+    const config = await resolveOpenSearchConfig(ctx.userId);
+    if (!config) {
+      throw new Error('OpenSearch is not configured.');
+    }
 
-    const indices = resolveIndices({ dateRange, mediaTypes });
-
-    return {
-      ctx,
-      indices,
-      pageSize: env.OPENSEARCH_PAGE_SIZE,
-      maxPages: env.OPENSEARCH_MAX_PAGES,
-    };
+    const adapter = createAdapter({ kind: 'opensearch', config });
+    return { ctx, adapter };
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // plan
+  // plan — capture declared capabilities (M9.11+ uses these)
   // ─────────────────────────────────────────────────────────────────────
 
   async plan(goalIn: unknown): Promise<PlanItem> {
-    const { ctx, indices, pageSize, maxPages } = goalIn as Reasoned;
-    return { ctx, indices, pageSize, maxPages };
+    const { ctx, adapter } = goalIn as Reasoned;
+    return { ctx, adapter, capabilities: adapter.declaredCapabilities() };
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // act — search_after pagination loop
+  // act — drive adapter.fetch(); bulk-insert; emit search:* events
   // ─────────────────────────────────────────────────────────────────────
 
   async act(planIn: unknown): Promise<SearchAgentResult> {
-    const { ctx, indices, pageSize, maxPages } = planIn as PlanItem;
+    const { ctx, adapter } = planIn as PlanItem;
     const t0 = Date.now();
 
-    await publishChatEvent(ctx.chatId, 'search:start', {
-      chatId: ctx.chatId,
-      totalIndicesQueried: indices.length,
-      indicesPreview: indices.slice(0, 5),
-    });
-
+    // M9.5 contract: `search:start` includes `totalIndicesQueried` +
+    // `indicesPreview`. Indices are an adapter-internal concern under
+    // the new architecture; we surface them via `adapter.meta()` AFTER
+    // the first page lands. To preserve the event ordering, we read
+    // the first-batch metadata before the second event fires.
+    let startEventSent = false;
     let pagesScanned = 0;
-    let searchAfter: unknown[] | undefined = undefined;
-    let totalHits = 0;
     let articlesInserted = 0;
     const indicesWithHits = new Set<string>();
     const presenceSample: NormalizedArticleFields[] = [];
     const openSearchIds: string[] = [];
+    let totalHits = 0;
 
     try {
-      while (pagesScanned < maxPages) {
-        const dsl = buildOpenSearchDsl(ctx.structured, { searchAfter });
-        const outcome = await search({
-          indices,
-          body: dsl as unknown as Record<string, unknown>,
-        });
+      for await (const batch of adapter.fetch({
+        userId: ctx.userId,
+        chatId: ctx.chatId,
+        config: null,
+        structured: ctx.structured,
+        mediaTypes: ctx.mediaTypes,
+      })) {
+        // Emit `search:start` once, on the first batch — the adapter's
+        // `meta()` is now populated with the resolved index list.
+        if (!startEventSent) {
+          startEventSent = true;
+          const meta0 = adapter.meta();
+          const indices0 = meta0.indicesQueried ?? [];
+          await publishChatEvent(ctx.chatId, 'search:start', {
+            chatId: ctx.chatId,
+            totalIndicesQueried: indices0.length,
+            indicesPreview: indices0.slice(0, 5),
+          });
+        }
 
-        // totalHits only valid on first response (search_after pages return
-        // the same `hits.total` per OpenSearch). Capture once.
-        if (pagesScanned === 0) totalHits = outcome.totalHits;
+        pagesScanned = batch.progress.page;
 
-        const hits = outcome.hits;
-        pagesScanned += 1;
-
-        // Empty page → loop terminates. Emit a final progress event so
-        // the frontend always sees at least one. lastPage:true.
-        if (hits.length === 0) {
+        // Empty terminal batch → emit one final progress event with
+        // lastPage:true and stop (matches the M9.5 pre-refactor
+        // contract).
+        if (batch.articles.length === 0) {
           await publishChatEvent(ctx.chatId, 'search:progress', {
             chatId: ctx.chatId,
             totalSoFar: articlesInserted,
@@ -318,53 +354,50 @@ export class SearchAgent extends BaseAgent {
           break;
         }
 
-        // Map hits → article rows for bulk insert.
-        const mapped = hits.map((h) =>
-          mapHitToArticle({ _id: h._id, _source: h._source as Record<string, unknown> }),
-        );
-
-        // Track index attribution. Hits in OpenSearch carry `_index`
-        // but the M9.1.2 wrapper strips it; we conservatively attribute
-        // every queried index. Phase 4 can refine if needed.
-        for (const ix of indices) indicesWithHits.add(ix);
-
-        // Accumulate the presence-detection sample BEFORE persistence —
-        // we always inspect the first N inserted hits, even when the
-        // first page exceeds N.
-        for (const m of mapped) {
+        // Update presence sample + openSearchIds + index attribution
+        // BEFORE persistence so reflect() always sees the first N rows.
+        for (const a of batch.articles) {
           if (presenceSample.length < PRESENCE_SAMPLE_SIZE) {
-            presenceSample.push(m);
+            presenceSample.push(toPresenceFields(a));
           }
-          openSearchIds.push(m.openSearchId);
+          openSearchIds.push(a.sourceArticleId);
         }
+        const meta = adapter.meta();
+        if (meta.totalHits !== null && pagesScanned === 1) totalHits = meta.totalHits;
+        for (const ix of meta.indicesQueried ?? []) indicesWithHits.add(ix);
 
-        // Bulk insert inside a fresh RLS transaction per page. This
-        // keeps the lock window short — millions of hits would otherwise
-        // hold one txn open for the whole loop.
+        // Bulk insert inside a fresh RLS transaction per batch. Keeps
+        // the lock window short across very large fetches.
+        const rows = batch.articles.map(toArticleRow);
         const insertResult = await withUser(ctx.userId, async (tx) => {
           return bulkInsertArticles(tx, {
             chatId: ctx.chatId,
             userId: ctx.userId,
-            articles: mapped as ArticleRowForInsert[],
+            articles: rows,
           });
         });
         articlesInserted += insertResult.inserted;
 
-        // Update search_after using the last hit's sort tuple. When the
-        // page is shorter than pageSize, this is the last page — flag
-        // it and emit lastPage:true before breaking.
-        const last = hits[hits.length - 1]!;
-        searchAfter = last.sort;
-
-        const lastPage = hits.length < pageSize || pagesScanned >= maxPages;
         await publishChatEvent(ctx.chatId, 'search:progress', {
           chatId: ctx.chatId,
           totalSoFar: articlesInserted,
           pagesScanned,
-          lastPage,
+          lastPage: batch.progress.isLastPage,
         });
 
-        if (lastPage) break;
+        if (batch.progress.isLastPage) break;
+      }
+
+      // Edge: adapter yielded zero batches at all. Emit start + a
+      // last-page progress so the frontend resolves its skeleton.
+      if (!startEventSent) {
+        const meta0 = adapter.meta();
+        const indices0 = meta0.indicesQueried ?? [];
+        await publishChatEvent(ctx.chatId, 'search:start', {
+          chatId: ctx.chatId,
+          totalIndicesQueried: indices0.length,
+          indicesPreview: indices0.slice(0, 5),
+        });
       }
     } catch (err) {
       const classified = classifySearchError(err);
@@ -434,8 +467,8 @@ export class SearchAgent extends BaseAgent {
     // M9.5.5: the probe lives in `reach-probe.service` — it emits
     // `reach:absent` AND pins `chat.context.state` to
     // `awaiting_reach_upgrade_consent` so a reconnect resumes the same
-    // probe. The service is agent-class-agnostic so the M9.6 adapter
-    // refactor (ADR-0001) leaves this dispatch untouched.
+    // probe. The service is agent-class-agnostic so the M9.6a adapter
+    // refactor leaves this dispatch untouched.
     if (
       ctx.enrichmentType === 'standard' &&
       presence.coverage.reach < PRESENCE_THRESHOLD
