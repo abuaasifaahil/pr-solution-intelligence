@@ -19,7 +19,12 @@ export type ChatEventType =
   // in its 7-step pipeline, and a final `processing:complete` when the run
   // finishes successfully.
   | 'processing:step'
-  | 'processing:complete';
+  | 'processing:complete'
+  // Phase 3 — EnrichmentAgent (M8.4) announces that batching is planned and
+  // per-batch jobs are about to land. The full 8-event set (`batch-*`,
+  // `progress`, `complete`, `reach-*`, `json-ready`) lands with M8.5–M8.7;
+  // M8.4 only emits the start event.
+  | 'enrichment:start';
 
 export interface ChatEvent {
   type: ChatEventType;
@@ -48,6 +53,26 @@ export async function publishChatEvent(
     // Pub/sub failure must never break the streaming task.
     // eslint-disable-next-line no-console
     console.error('[event-bus] publish failed', { chatId, type, err });
+  }
+}
+
+/**
+ * Publish to an arbitrary Redis pub/sub channel (not the per-chat one).
+ * Used by the Phase 3 cross-agent bus (e.g. `agent:enrichment:incoming`)
+ * to hand control off between agents that live in the same process but
+ * are decoupled through the message bus. Errors are logged, not thrown —
+ * the publish must never break the publishing agent's lifecycle.
+ */
+export async function publishAgentBus(
+  channel: string,
+  payload: unknown,
+): Promise<void> {
+  const pub = getRedis();
+  try {
+    await pub.publish(channel, JSON.stringify(payload));
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[event-bus] agent-bus publish failed', { channel, err });
   }
 }
 

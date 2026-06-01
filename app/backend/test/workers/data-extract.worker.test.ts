@@ -42,6 +42,7 @@ if (!PG_OK) {
 
 // ─── Mock event-bus to capture published events. ─────────────────────────
 const publishedEvents: Array<{ chatId: string; type: string; payload: unknown }> = [];
+const publishedAgentBus: Array<{ channel: string; payload: unknown }> = [];
 vi.mock('../../src/lib/event-bus.js', async () => {
   const actual =
     await vi.importActual<typeof import('../../src/lib/event-bus.js')>(
@@ -52,6 +53,14 @@ vi.mock('../../src/lib/event-bus.js', async () => {
     publishChatEvent: vi.fn(
       async (chatId: string, type: string, payload: unknown) => {
         publishedEvents.push({ chatId, type, payload });
+      },
+    ),
+    // M8.4 — DataExtractAgent.act now publishes on the cross-agent bus
+    // after the 7-step pipeline commits. The real implementation talks to
+    // Redis; this stub just records the call.
+    publishAgentBus: vi.fn(
+      async (channel: string, payload: unknown) => {
+        publishedAgentBus.push({ channel, payload });
       },
     ),
   };

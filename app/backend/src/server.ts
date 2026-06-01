@@ -18,6 +18,8 @@ import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { DataExtractAgent } from './agents/data-extract.agent.js';
+import { EnrichmentAgent } from './agents/enrichment.agent.js';
+import { startEnrichmentSubscriber } from './agents/enrichment-subscriber.js';
 import { AgentRegistry } from './agents/agent-registry.js';
 import { startInlineWorker } from './lib/queue.js';
 import { parseUploadProcessor } from './workers/parse-upload.worker.js';
@@ -57,6 +59,19 @@ async function bootstrapAgents(): Promise<void> {
         '00000000-0000-0000-0000-0000000d4ea7', // sentinel UUID (d4ea7 ~= "data extract")
         'Data Extract Agent',
         'data_extract',
+      ),
+    );
+  }
+  // Phase 3 — M8.4: EnrichmentAgent singleton. Same pattern as M7.7's
+  // DataExtractAgent — no agents-table row, sentinel UUID, logAction
+  // overridden to no-op. The cross-agent bus subscriber (started below
+  // after route registration) drives this agent.
+  if (!AgentRegistry.has('enrichment')) {
+    AgentRegistry.register(
+      new EnrichmentAgent(
+        '00000000-0000-0000-0000-0000000e87c1', // sentinel UUID (e87c1 ~= "enrich")
+        'Enrichment Agent',
+        'enrichment',
       ),
     );
   }
@@ -121,6 +136,11 @@ export async function buildServer(): Promise<FastifyInstance> {
       }
       return processor(job, token);
     });
+
+    // Phase 3 — M8.4: bridge DataExtractAgent's handoff publish to the
+    // EnrichmentAgent. Mirrors the queue bootstrap above: NODE_ENV=test
+    // skipped so unit tests don't open a Redis subscribe connection.
+    startEnrichmentSubscriber();
   }
 
   return app;
