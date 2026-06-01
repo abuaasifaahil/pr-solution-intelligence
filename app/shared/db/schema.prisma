@@ -103,6 +103,48 @@ enum ChatDataSource {
   opensearch
 }
 
+// ─── Phase 3.5 (M9.6c) — composable skills + user agents (ADR-0003 D4) ──
+//
+// `SkillKind` mirrors the six kinds ADR-0002 Part 1 enumerates.
+// `SkillScope` adds the per-user dimension ADR-0003 Decision 4 amends.
+// `TrustLevel` is the verifier signal Phase 6 admin will surface.
+// `AgentKind` mirrors the 4 legacy Phase 1 analysis agents — adding kinds
+// later is a Postgres ENUM-add migration.
+// `AgentScope` separates own/private from workspace-shared (admin-promoted).
+enum SkillKind {
+  analysis_skill
+  source_skill
+  enrichment_skill
+  tool_skill
+  alert_skill
+  external_skill
+}
+
+enum SkillScope {
+  first_party
+  workspace
+  user_private
+  community
+}
+
+enum TrustLevel {
+  first_party
+  verified
+  community
+}
+
+enum AgentKind {
+  pr_impact
+  brand_sentinel
+  crisis_watch
+  competitor_tracker
+}
+
+enum AgentScope {
+  user_private
+  workspace_shared
+}
+
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique @db.VarChar(255)
@@ -126,6 +168,13 @@ model User {
   chatParams     ChatParams[]
   enrichments    Enrichment[]
   enrichmentJobs EnrichmentJob[]
+  // Phase 3.5 (M9.6c) — per-user authoring of agents + composable skills.
+  // `composableSkills` is named to avoid colliding with `userSkills`
+  // (the M5 settings join table) — both fields coexist; the Phase 5.5
+  // skill composer reads `composableSkills` while M5 Settings reads
+  // `userSkills`.
+  userAgents       UserAgent[]
+  composableSkills ComposableSkill[]
 
   @@index([role])
   @@index([isActive])
@@ -582,4 +631,56 @@ model SearchHistory {
   @@index([chatId, queryHash])
   @@index([chatId, executedAt(sort: Desc)])
   @@map("search_history")
+}
+
+// ─── Phase 3.5 (M9.6c) — composable skills + user agents ─────────────────
+//
+// ADR-0003 Decision 4 amends ADR-0002: skills become per-user authorable
+// while the existing M5 `Skill` / `UserSkill` join (capability flags
+// like `sentiment_analysis`) keeps powering /api/v1/settings/skills.
+//
+// To avoid colliding with the live M5 table name `skills`, this new
+// table is mapped to `composable_skills` in Postgres. The Prisma model
+// name `ComposableSkill` makes the distinction explicit at the type
+// level. A future ADR or Phase 5.5 milestone can resolve the rename
+// once M5's table can be retired.
+//
+// `workspace_id` is intentionally a plain nullable UUID — the
+// `workspaces` table doesn't exist yet (Phase 6). Phase 6 will add the
+// FK once the parent table lands.
+model ComposableSkill {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String
+  version     String     @default("1.0.0")
+  kind        SkillKind
+  manifest    Json
+  scope       SkillScope
+  userId      String?    @map("user_id") @db.Uuid
+  workspaceId String?    @map("workspace_id") @db.Uuid
+  trustLevel  TrustLevel @default(first_party) @map("trust_level")
+  enabled     Boolean    @default(true)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([scope, userId, workspaceId, name, version], map: "composable_skill_unique_per_scope")
+  @@index([scope, enabled], map: "composable_skills_scope_enabled_idx")
+  @@index([userId, enabled], map: "composable_skills_user_id_enabled_idx")
+  @@map("composable_skills")
+}
+
+model UserAgent {
+  id            String     @id @default(uuid()) @db.Uuid
+  userId        String     @map("user_id") @db.Uuid
+  name          String
+  baseAgentKind AgentKind  @map("base_agent_kind")
+  customization Json
+  scope         AgentScope @default(user_private)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("user_agents")
 }

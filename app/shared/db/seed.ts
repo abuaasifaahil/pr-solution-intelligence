@@ -60,6 +60,32 @@ const defaultAgents = [
   },
 ] as const;
 
+// Phase 3.5 (M9.6c) — first-party `analysis_skill` rows on the new
+// `composable_skills` table. These mirror the four legacy Phase 1 agent
+// classes so the M9.7+ composer can refer to them by `(scope, name)`
+// without needing to special-case the legacy agent dropdown. The
+// manifest stays minimal — M10.5's JSONSchema work will expand it.
+// Idempotent: upsert keyed on the unique (scope, user_id, workspace_id,
+// name, version) index from migration 20260601100000.
+const firstPartyAnalysisSkills = [
+  {
+    name: 'pr-impact',
+    description: 'Sentiment + reach + themes for a brand over a date range',
+  },
+  {
+    name: 'brand-sentinel',
+    description: 'Continuous monitoring of brand mentions across channels',
+  },
+  {
+    name: 'crisis-watch',
+    description: 'Real-time alerting on negative-coverage spikes',
+  },
+  {
+    name: 'competitor-tracker',
+    description: 'Comparative media coverage across a brand and its peers',
+  },
+] as const;
+
 // Each user gets its own password — admin/prod users must not share the shared
 // test password. Hashing happens per-user inside the seed loop.
 const seedUsers = [
@@ -88,6 +114,41 @@ async function main(): Promise<void> {
     });
   }
   console.log(`✓ Seeded ${defaultSkills.length} default skills`);
+
+  // ── Phase 3.5 (M9.6c) — first-party composable_skills rows ───────────
+  // These power the M9.7 / Phase 5.5 SkillComposer fallback chain. The
+  // seed runs as the prisma superuser so it bypasses RLS — production
+  // user paths (createSkill in composable-skill.service) reject
+  // first_party writes at the service layer.
+  //
+  // Idempotent: the unique (scope, user_id, workspace_id, name, version)
+  // index has nullable columns so Prisma's `where: { … }` compound
+  // can't hit it directly. We hand-roll find-then-create.
+  console.log(`Seeding ${firstPartyAnalysisSkills.length} first-party composable_skills...`);
+  for (const s of firstPartyAnalysisSkills) {
+    const existing = await prisma.composableSkill.findFirst({
+      where: { scope: 'first_party', name: s.name, version: '1.0.0' },
+    });
+    if (!existing) {
+      await prisma.composableSkill.create({
+        data: {
+          name: s.name,
+          version: '1.0.0',
+          kind: 'analysis_skill',
+          manifest: {
+            description: s.description,
+            model_family: 'gpt-4-tier',
+          },
+          scope: 'first_party',
+          userId: null,
+          workspaceId: null,
+          trustLevel: 'first_party',
+          enabled: true,
+        },
+      });
+    }
+  }
+  console.log(`✓ Seeded ${firstPartyAnalysisSkills.length} first-party composable_skills`);
 
   // Seed users — `users` has FORCE ROW LEVEL SECURITY (set in the add_rls
   // migration) and no INSERT policy. Even the table owner cannot insert under
