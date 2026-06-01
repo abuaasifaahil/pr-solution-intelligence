@@ -22,6 +22,12 @@ export type ChatEventType =
   // Definition only — emission lands in M9.4 once the orchestrator hook
   // calls extractIntent().
   | 'intent:extracted'
+  // Phase 3.5 (M9.4) — fired BEFORE the LLM call begins so the frontend can
+  // render a "thinking…" indicator while extractIntent runs. Cold-start
+  // Azure latency can hit ~17s, so this event matters for UX. Always
+  // followed by either `intent:extracted` (success) or no further intent
+  // event (silent fallback to wizard on LLM error).
+  | 'intent:extracting'
   // Phase 2 — DataExtractAgent (M7.7) emits one `processing:step` per step
   // in its 7-step pipeline, and a final `processing:complete` when the run
   // finishes successfully.
@@ -72,6 +78,15 @@ export interface IntentExtractedPayload {
   chatId: string;
   intent: Intent;
   unfilledFields: IntentFieldKey[];
+}
+
+/**
+ * Payload for the `intent:extracting` event (M9.4). Fired before the LLM
+ * call begins so the frontend can show a loading state. The chatId is all
+ * the consumer needs — there's no extracted data yet.
+ */
+export interface IntentExtractingPayload {
+  chatId: string;
 }
 
 function channelFor(chatId: string): string {

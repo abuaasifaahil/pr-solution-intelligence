@@ -392,6 +392,12 @@ model ChatParams {
   /// would force a schema migration every time we add a new MediaType.
   mediaTypes String[] @default([]) @map("media_types")
 
+  /// M9.4 — one-shot idempotency flag for the IntentExtractor hook.
+  /// Set when the orchestrator runs `extractIntent` against the user's
+  /// first message (or when M9.7's manual re-trigger endpoint runs it).
+  /// Re-opening the chat after a disconnect does NOT re-run extraction.
+  intentExtractedAt DateTime? @map("intent_extracted_at") @db.Timestamptz
+
   collectedAt DateTime? @map("collected_at") @db.Timestamptz
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz

@@ -97,6 +97,11 @@ export interface PatchInput {
   /** Empty array == "use platform default media types"; non-empty == user
    *  override. `undefined` leaves the existing column untouched. */
   mediaTypes?: MediaType[];
+  // ── Phase 3.5 (M9.4) ──────────────────────────────────────────────────
+  /** Set by M9.4's orchestrator hook (or M9.7's manual re-trigger) to mark
+   *  that IntentExtractor has already run for this chat. Used as the
+   *  one-shot guard so we never re-extract on reconnect or replay. */
+  intentExtractedAt?: Date | null;
 }
 
 /** Partial update of chat_params + automatic flow-state advance.
@@ -141,6 +146,11 @@ export async function patchParams(
     }
     if (patch.mediaTypes !== undefined) {
       data.mediaTypes = MediaTypesSchema.parse(patch.mediaTypes);
+    }
+    // M9.4 idempotency stamp. No validation beyond Prisma's Date type —
+    // `null` is allowed (lets an admin re-arm extraction for a chat).
+    if (patch.intentExtractedAt !== undefined) {
+      data.intentExtractedAt = patch.intentExtractedAt;
     }
 
     const updated = await tx.chatParams.update({ where: { chatId }, data });

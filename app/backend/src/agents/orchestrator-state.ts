@@ -102,6 +102,72 @@ export function isReady(state: ConversationState): boolean {
 }
 
 /**
+ * Minimal chat_params shape the auto-skip helper reads. Kept as a separate
+ * interface (not the full Prisma row) so M9.4 callers — and the unit tests
+ * — don't need a real DB row to drive the helper. Fields are nullable to
+ * mirror how the DB exposes them.
+ */
+export interface ChatParamsShape {
+  brand?: string | null;
+  dateStart?: Date | string | null;
+  dateEnd?: Date | string | null;
+  enrichmentType?: 'standard' | 'reach' | string | null;
+  competitors?: unknown; // JSON array — accept any iterable-ish shape
+  intention?: 'intention_based' | 'comment_based' | string | null;
+}
+
+/**
+ * Chips presented when the conversation is currently AWAITING input for the
+ * given state. M9.4 reads this so it can jump ahead — past states it would
+ * normally pass through one at a time — and still render the right action
+ * picker on the frontend.
+ *
+ * Free-text states (`awaiting_brand`) have `[]` chips; the user types.
+ * Terminal states (`ready`) also have `[]`.
+ */
+export const CHIPS_FOR_STATE: Record<ConversationState, Chip[]> = {
+  welcome: [],
+  awaiting_date: DATE_CHIPS,
+  awaiting_enrichment: ENRICHMENT_CHIPS,
+  awaiting_brand: [],
+  awaiting_competitors: COMPETITOR_CHIPS,
+  awaiting_intention: INTENTION_CHIPS,
+  ready: [],
+};
+
+/**
+ * Returns the FIRST wizard state in the existing welcome → ready chain
+ * whose corresponding chat_params slot is NOT yet filled. M9.4 uses this
+ * after IntentExtractor pre-populates params: instead of routing the user
+ * through every state, we jump straight to the first slot still missing.
+ *
+ * Ordering matches the existing `advance()` chain so the user-visible
+ * prompts come in the same order whether or not extraction ran:
+ *   awaiting_date → awaiting_enrichment → awaiting_brand →
+ *   awaiting_competitors → awaiting_intention → ready
+ *
+ * Returns 'ready' when every wizard slot is already populated (the
+ * happy path for a fully-extracted intent). Returns null only when the
+ * caller passed a totally empty shape AND we want to preserve the
+ * existing "welcome → first state" behavior — but in practice the
+ * empty-shape case also resolves to `awaiting_date`, so M9.4 only
+ * special-cases the result when it equals `awaiting_date` (= no skip
+ * was achieved, fall back to vanilla flow).
+ */
+export function nextUnfilledState(
+  params: ChatParamsShape,
+): Exclude<ConversationState, 'welcome'> {
+  if (!params.dateStart || !params.dateEnd) return 'awaiting_date';
+  if (!params.enrichmentType) return 'awaiting_enrichment';
+  if (!params.brand) return 'awaiting_brand';
+  const competitorsFilled =
+    Array.isArray(params.competitors) && params.competitors.length > 0;
+  if (!competitorsFilled) return 'awaiting_competitors';
+  if (!params.intention) return 'awaiting_intention';
+  return 'ready';
+}
+
+/**
  * Per-state chip values used by the LLM `parseChoice` extractor. Centralized
  * here (not duplicated in chat.service + orchestrator.agent) so the sync
  * state-advance path and the streaming-reason path agree on what counts as
