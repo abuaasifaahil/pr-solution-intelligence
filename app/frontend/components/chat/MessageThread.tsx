@@ -9,6 +9,8 @@ import { DataPreviewTable } from './DataPreviewTable';
 import { FlowStepPrompt } from './FlowStepPrompt';
 import { BooleanQueryPreview } from './BooleanQueryPreview';
 import { AgentActionPanel } from './AgentActionPanel';
+import { EnrichmentProgressCard } from './EnrichmentProgressCard';
+import type { EnrichmentSessionState } from '../../hooks/useEnrichmentSession';
 import type { ChatMessage, ChipDef } from '../../lib/chats';
 import type { UploadStatus, UploadPreview } from '../../lib/uploads';
 import type {
@@ -53,6 +55,12 @@ interface Props {
   onIntentionPick?: (intention: 'intention_based' | 'comment_based') => void;
   onQueryEdit?: (text: string) => void;
   onQueryConfirm?: () => void;
+
+  // ── Phase 3 — enrichment state (M8.8) ────────────────────────────────────
+  /** When provided and `enrichment.job` exists, an EnrichmentProgressCard
+   *  renders after the chat-completion summary. The card itself handles
+   *  the in-progress → completion transition based on `enrichment.isDone`. */
+  enrichment?: EnrichmentSessionState | null;
 }
 
 /**
@@ -97,6 +105,7 @@ export function MessageThread({
   onIntentionPick,
   onQueryEdit,
   onQueryConfirm,
+  enrichment,
 }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -208,6 +217,14 @@ export function MessageThread({
           // Open by default the moment the run completes; user can collapse.
           defaultSummaryOpen={flowState === 'complete'}
         />
+      )}
+
+      {/* Phase 3 — enrichment progress lands AFTER the data-extract
+          completion summary so the transcript reads:
+            chat → data extract → enrichment → [M8.9 ChipUp]
+          Only mounts when an enrichment job actually exists. */}
+      {flowState === 'complete' && enrichment?.job && (
+        <EnrichmentProgressCard state={enrichment} />
       )}
 
       {/* Phase 1 — orchestrator chips on the latest assistant message. Only

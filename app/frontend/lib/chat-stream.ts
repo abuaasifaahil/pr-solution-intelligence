@@ -59,6 +59,68 @@ export interface ProcessingCompletePayload {
   totalTime: number;
 }
 
+// ── Phase 3 (M8.x) — enrichment pipeline payloads ───────────────────────────
+
+export interface EnrichmentStartPayload {
+  jobId: string;
+  totalArticles: number;
+  batchCount: number;
+  model: string;
+}
+export interface EnrichmentBatchStartPayload {
+  jobId: string;
+  batchNumber: number;
+  articleCount: number;
+  estimatedTokens: number;
+}
+export interface EnrichmentBatchCompletePayload {
+  jobId: string;
+  batchNumber: number;
+  processedCount: number;
+  tokensUsed: number;
+  duration: number;
+}
+export interface EnrichmentBatchErrorPayload {
+  jobId: string;
+  batchNumber: number;
+  error: string;
+  retrying: boolean;
+  retryCount: number;
+}
+export interface EnrichmentProgressPayload {
+  jobId: string;
+  processed: number;
+  total: number;
+  percent: number;
+  tokensTotal: number;
+  elapsed: number;
+}
+export interface EnrichmentReachStartPayload {
+  jobId: string;
+  chatId: string;
+  domains: number;
+}
+export interface EnrichmentReachCompletePayload {
+  jobId: string;
+  resolved: number;
+  total: number;
+  coverage: number;
+  duration: number;
+}
+export interface EnrichmentCompletePayload {
+  jobId: string;
+  totalArticles: number;
+  totalTokens: number;
+  duration: number;
+  dimensions: string[];
+  status: 'completed' | 'partial' | 'failed';
+}
+export interface EnrichmentJsonReadyPayload {
+  chatId: string;
+  artifactId: string;
+  articleCount: number;
+}
+
 export interface ChatStreamConfig {
   apiUrl: string;          // e.g. http://localhost:3001 or https://prsi-api.onrender.com
   chatId: string;
@@ -77,7 +139,16 @@ type ServerEvent =
   | { type: 'upload:error'; payload: UploadErrorPayload }
   | { type: 'flow:state-change'; payload: FlowStateChangePayload }
   | { type: 'processing:step'; payload: ProcessingStepPayload }
-  | { type: 'processing:complete'; payload: ProcessingCompletePayload };
+  | { type: 'processing:complete'; payload: ProcessingCompletePayload }
+  | { type: 'enrichment:start'; payload: EnrichmentStartPayload }
+  | { type: 'enrichment:batch-start'; payload: EnrichmentBatchStartPayload }
+  | { type: 'enrichment:batch-complete'; payload: EnrichmentBatchCompletePayload }
+  | { type: 'enrichment:batch-error'; payload: EnrichmentBatchErrorPayload }
+  | { type: 'enrichment:progress'; payload: EnrichmentProgressPayload }
+  | { type: 'enrichment:reach-start'; payload: EnrichmentReachStartPayload }
+  | { type: 'enrichment:reach-complete'; payload: EnrichmentReachCompletePayload }
+  | { type: 'enrichment:complete'; payload: EnrichmentCompletePayload }
+  | { type: 'enrichment:json-ready'; payload: EnrichmentJsonReadyPayload };
 
 /**
  * Auto-reconnecting WebSocket client for /ws/chat/:chatId.
@@ -101,6 +172,15 @@ export class ChatStream {
   private flowStateHandlers: Array<(p: FlowStateChangePayload) => void> = [];
   private processingStepHandlers: Array<(p: ProcessingStepPayload) => void> = [];
   private processingCompleteHandlers: Array<(p: ProcessingCompletePayload) => void> = [];
+  private enrichmentStartHandlers: Array<(p: EnrichmentStartPayload) => void> = [];
+  private enrichmentBatchStartHandlers: Array<(p: EnrichmentBatchStartPayload) => void> = [];
+  private enrichmentBatchCompleteHandlers: Array<(p: EnrichmentBatchCompletePayload) => void> = [];
+  private enrichmentBatchErrorHandlers: Array<(p: EnrichmentBatchErrorPayload) => void> = [];
+  private enrichmentProgressHandlers: Array<(p: EnrichmentProgressPayload) => void> = [];
+  private enrichmentReachStartHandlers: Array<(p: EnrichmentReachStartPayload) => void> = [];
+  private enrichmentReachCompleteHandlers: Array<(p: EnrichmentReachCompletePayload) => void> = [];
+  private enrichmentCompleteHandlers: Array<(p: EnrichmentCompletePayload) => void> = [];
+  private enrichmentJsonReadyHandlers: Array<(p: EnrichmentJsonReadyPayload) => void> = [];
 
   constructor(private readonly config: ChatStreamConfig) {}
 
@@ -168,6 +248,35 @@ export class ChatStream {
     this.processingCompleteHandlers.push(cb);
   }
 
+  // ── Phase 3 enrichment handler registrations ─────────────────────────────
+  onEnrichmentStart(cb: (p: EnrichmentStartPayload) => void): void {
+    this.enrichmentStartHandlers.push(cb);
+  }
+  onEnrichmentBatchStart(cb: (p: EnrichmentBatchStartPayload) => void): void {
+    this.enrichmentBatchStartHandlers.push(cb);
+  }
+  onEnrichmentBatchComplete(cb: (p: EnrichmentBatchCompletePayload) => void): void {
+    this.enrichmentBatchCompleteHandlers.push(cb);
+  }
+  onEnrichmentBatchError(cb: (p: EnrichmentBatchErrorPayload) => void): void {
+    this.enrichmentBatchErrorHandlers.push(cb);
+  }
+  onEnrichmentProgress(cb: (p: EnrichmentProgressPayload) => void): void {
+    this.enrichmentProgressHandlers.push(cb);
+  }
+  onEnrichmentReachStart(cb: (p: EnrichmentReachStartPayload) => void): void {
+    this.enrichmentReachStartHandlers.push(cb);
+  }
+  onEnrichmentReachComplete(cb: (p: EnrichmentReachCompletePayload) => void): void {
+    this.enrichmentReachCompleteHandlers.push(cb);
+  }
+  onEnrichmentComplete(cb: (p: EnrichmentCompletePayload) => void): void {
+    this.enrichmentCompleteHandlers.push(cb);
+  }
+  onEnrichmentJsonReady(cb: (p: EnrichmentJsonReadyPayload) => void): void {
+    this.enrichmentJsonReadyHandlers.push(cb);
+  }
+
   private dispatch(evt: ServerEvent): void {
     switch (evt.type) {
       case 'typing:start':
@@ -202,6 +311,33 @@ export class ChatStream {
         return;
       case 'processing:complete':
         for (const h of this.processingCompleteHandlers) h(evt.payload);
+        return;
+      case 'enrichment:start':
+        for (const h of this.enrichmentStartHandlers) h(evt.payload);
+        return;
+      case 'enrichment:batch-start':
+        for (const h of this.enrichmentBatchStartHandlers) h(evt.payload);
+        return;
+      case 'enrichment:batch-complete':
+        for (const h of this.enrichmentBatchCompleteHandlers) h(evt.payload);
+        return;
+      case 'enrichment:batch-error':
+        for (const h of this.enrichmentBatchErrorHandlers) h(evt.payload);
+        return;
+      case 'enrichment:progress':
+        for (const h of this.enrichmentProgressHandlers) h(evt.payload);
+        return;
+      case 'enrichment:reach-start':
+        for (const h of this.enrichmentReachStartHandlers) h(evt.payload);
+        return;
+      case 'enrichment:reach-complete':
+        for (const h of this.enrichmentReachCompleteHandlers) h(evt.payload);
+        return;
+      case 'enrichment:complete':
+        for (const h of this.enrichmentCompleteHandlers) h(evt.payload);
+        return;
+      case 'enrichment:json-ready':
+        for (const h of this.enrichmentJsonReadyHandlers) h(evt.payload);
         return;
       case 'agent:progress':
         // Phase 1 / Phase 3 — Orchestrator + Strategy agents emit this. We
