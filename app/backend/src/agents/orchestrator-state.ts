@@ -5,7 +5,21 @@ export type ConversationState =
   | 'awaiting_brand'
   | 'awaiting_competitors'
   | 'awaiting_intention'
-  | 'ready';
+  | 'ready'
+  // ── Phase 3.5 (M9.5.5) ────────────────────────────────────────────────
+  /** Transient post-fetch probe state. Entered by `enterReachProbe` when
+   *  the SearchAgent's reflect step found reach coverage < 0.8 AND
+   *  chat_params.enrichmentType == 'standard'. Awaits a chip choice:
+   *  'upgrade_similarweb' (bump enrichmentType=reach + dispatch
+   *  EnrichmentAgent + SimilarWebAgent) or 'continue_without_reach'
+   *  (switch intention=comment_based + dispatch EnrichmentAgent only).
+   *  NOT a wizard step — `nextUnfilledState` deliberately skips it. */
+  | 'awaiting_reach_upgrade_consent'
+  /** Terminal hand-off state set by `resolveReachProbe` after the user
+   *  picks a chip. EnrichmentAgent has been dispatched on the agent bus
+   *  and the orchestrator no longer drives the conversation — the
+   *  `enrichment:*` event stream owns the UX from here. */
+  | 'enriching';
 
 export const INITIAL_STATE: ConversationState = 'welcome';
 
@@ -60,6 +74,16 @@ const COMPETITOR_CHIPS: Chip[] = [
 const INTENTION_CHIPS: Chip[] = [
   { label: 'Intention-based', value: 'intention_based' },
   { label: 'Comment-based', value: 'comment_based' },
+];
+/**
+ * M9.5.5 — chips for the reach-probe state. The labels match the user-
+ * facing copy in the spec ("Add SimilarWeb (recommended)" / "Continue
+ * without reach"). The values are consumed by `resolveReachProbe`, which
+ * does the side-effects (chat_params patch + EnrichmentAgent dispatch).
+ */
+const REACH_UPGRADE_CHIPS: Chip[] = [
+  { label: 'Add SimilarWeb (recommended)', value: 'upgrade_similarweb' },
+  { label: 'Continue without reach', value: 'continue_without_reach' },
 ];
 
 export type AgentType =
@@ -133,6 +157,10 @@ export const CHIPS_FOR_STATE: Record<ConversationState, Chip[]> = {
   awaiting_competitors: COMPETITOR_CHIPS,
   awaiting_intention: INTENTION_CHIPS,
   ready: [],
+  // M9.5.5 — see comment on ConversationState. Probe state surfaces the
+  // SimilarWeb-upgrade decision; `enriching` is terminal and renders no chips.
+  awaiting_reach_upgrade_consent: REACH_UPGRADE_CHIPS,
+  enriching: [],
 };
 
 /**
@@ -156,7 +184,14 @@ export const CHIPS_FOR_STATE: Record<ConversationState, Chip[]> = {
  */
 export function nextUnfilledState(
   params: ChatParamsShape,
-): Exclude<ConversationState, 'welcome'> {
+): Exclude<
+  ConversationState,
+  // 'welcome' is the starting state — never the "next unfilled" target.
+  // 'awaiting_reach_upgrade_consent' is a transient probe state entered
+  // post-fetch, not part of the wizard chain (M9.5.5).
+  // 'enriching' is terminal — driven by the agent bus, not by user input.
+  'welcome' | 'awaiting_reach_upgrade_consent' | 'enriching'
+> {
   if (!params.dateStart || !params.dateEnd) return 'awaiting_date';
   if (!params.enrichmentType) return 'awaiting_enrichment';
   if (!params.brand) return 'awaiting_brand';
@@ -179,6 +214,9 @@ export const CHIP_OPTIONS_BY_STATE: Partial<Record<ConversationState, string[]>>
   awaiting_enrichment: ['enrichment', 'enrichment_plus_reach'],
   awaiting_competitors: ['top5', 'top3', 'top2', 'other'],
   awaiting_intention: ['intention_based', 'comment_based'],
+  // M9.5.5 — included so free-text on the probe state ("yes upgrade",
+  // "just continue") still gets parseChoice-mapped onto a chip value.
+  awaiting_reach_upgrade_consent: ['upgrade_similarweb', 'continue_without_reach'],
 };
 
 export function advance(
@@ -321,6 +359,56 @@ export function advance(
         replyTemplate:
           'All parameters were already captured. Politely remind the user that real analysis ' +
           'arrives in Phase 2 and they can click New Chat to start a new flow.',
+        chips: [],
+      };
+
+    // ── Phase 3.5 (M9.5.5) ────────────────────────────────────────────────
+    case 'awaiting_reach_upgrade_consent': {
+      const choice = input.choice as
+        | 'upgrade_similarweb'
+        | 'continue_without_reach'
+        | undefined;
+      if (choice !== 'upgrade_similarweb' && choice !== 'continue_without_reach') {
+        // Stay in state, re-prompt with the same chips. The user must
+        // pick one of the two — no graceful degradation here because
+        // the alternative would be silently dropping the user into
+        // an enrichment dispatch they didn't choose.
+        return {
+          newState: 'awaiting_reach_upgrade_consent',
+          contextPatch: {},
+          replyTemplate:
+            'Politely ask the user to pick one of the two chips: add SimilarWeb reach lookups, ' +
+            'or continue with comment-based analysis only. One sentence.',
+          chips: REACH_UPGRADE_CHIPS,
+        };
+      }
+      // Side-effects (patchParams + EnrichmentAgent dispatch) live in
+      // `resolveReachProbe`. The state machine just declares the
+      // transition; the orchestrator calls the service after `advance`.
+      return {
+        newState: 'enriching',
+        contextPatch: { state: 'enriching' },
+        replyTemplate:
+          choice === 'upgrade_similarweb'
+            ? 'Acknowledge that SimilarWeb reach lookups will be added on top of enrichment. ' +
+              'Mention this takes a bit longer. Two sentences max.'
+            : 'Acknowledge that the analysis will proceed comment-based, without reach data. ' +
+              'Two sentences max.',
+        chips: [],
+      };
+    }
+
+    case 'enriching':
+      // Terminal hand-off state. EnrichmentAgent runs out-of-band; the
+      // orchestrator no longer drives the conversation. Any free-text
+      // arriving here is treated as a no-op so we don't accidentally
+      // back-transition the chat into an old wizard slot.
+      return {
+        newState: 'enriching',
+        contextPatch: {},
+        replyTemplate:
+          'Politely tell the user that enrichment is running and results will arrive shortly. ' +
+          'One sentence.',
         chips: [],
       };
 

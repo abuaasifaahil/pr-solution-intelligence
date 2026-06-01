@@ -86,7 +86,13 @@ export type ChatEventType =
   | 'search:fetched'
   | 'reach:absent'
   | 'search:complete'
-  | 'search:error';
+  | 'search:error'
+  // Phase 3.5 (M9.5.5) — terminal event for the reach-probe handshake.
+  // Emitted by `resolveReachProbe` after the user picks a chip in the
+  // `awaiting_reach_upgrade_consent` state and the matching enrichment
+  // dispatch has been queued. Frontend uses this to clear the probe chip
+  // UI and switch to the `enrichment:*` event stream.
+  | 'reach:resolved';
 
 export interface ChatEvent {
   type: ChatEventType;
@@ -179,6 +185,17 @@ export interface SearchErrorPayload {
   message: string;
   /** Populated when the failure came from `search()`'s retry loop. */
   retriesUsed?: number;
+}
+
+/**
+ * M9.5.5 — payload for `reach:resolved`. The user's chip choice from the
+ * `awaiting_reach_upgrade_consent` state. `upgrade_similarweb` means the
+ * downstream EnrichmentAgent + SimilarWebAgent fan-out is about to run;
+ * `continue_without_reach` means only EnrichmentAgent runs (comment-based).
+ */
+export interface ReachResolvedPayload {
+  chatId: string;
+  choice: 'upgrade_similarweb' | 'continue_without_reach';
 }
 
 function channelFor(chatId: string): string {

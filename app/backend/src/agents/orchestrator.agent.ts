@@ -21,6 +21,10 @@ import {
   applyIntentToChatParams,
   markIntentExtracted,
 } from '../services/intent-application.service.js';
+import {
+  resolveReachProbe,
+  type ReachProbeChoice,
+} from '../services/reach-probe.service.js';
 
 interface OrchestratorInput extends AgentInput {
   metadata?: {
@@ -40,7 +44,14 @@ interface OrchestratorInput extends AgentInput {
  * to the normal welcome→awaiting_date transition".
  */
 interface IntentHookResult {
-  skipTo: Exclude<ConversationState, 'welcome' | 'awaiting_date'> | null;
+  // M9.5.5 widened `ConversationState` with the probe + enriching states;
+  // neither is a valid wizard-skip target (the probe is post-fetch, not
+  // pre-fetch; `enriching` is driven by the agent bus). Narrow back here
+  // so `buildSkipReplyTemplate`'s exhaustive switch stays valid.
+  skipTo: Exclude<
+    ConversationState,
+    'welcome' | 'awaiting_date' | 'awaiting_reach_upgrade_consent' | 'enriching'
+  > | null;
 }
 
 export interface OrchestratorResult {
@@ -127,6 +138,52 @@ export class OrchestratorAgent extends BaseAgent {
     };
   }
 
+  /**
+   * M9.5.5 — side-effect dispatcher for the reach-probe state.
+   *
+   * Called by `execute()` and `executeStreaming()` AFTER `advance` has
+   * declared the transition. When the current state is the probe state
+   * AND the advance successfully transitioned (chip was valid → state
+   * advanced to `enriching`), this fires `resolveReachProbe` which
+   * patches chat_params and dispatches enrichment on the agent bus.
+   *
+   * Errors propagate as a `chat:error` event on the WS channel so the
+   * frontend can surface the failure; the original error then bubbles
+   * out so BaseAgent's `logAction('execute_failed', …)` path records it.
+   *
+   * Decoupled from the state-machine in `advance()` so the side-effects
+   * stay agent-class-agnostic per ADR-0001 (M9.6 refactor).
+   */
+  private async runReachProbeSideEffect(
+    fromState: ConversationState,
+    advanceInput: AdvanceInput,
+    contextPatch: Partial<ChatContext>,
+    userId: string,
+    chatId: string,
+  ): Promise<void> {
+    // Only fire on a successful exit out of the probe state.
+    if (fromState !== 'awaiting_reach_upgrade_consent') return;
+    if (contextPatch.state !== 'enriching') return;
+    const choice = advanceInput.choice as ReachProbeChoice | undefined;
+    if (choice !== 'upgrade_similarweb' && choice !== 'continue_without_reach') {
+      return;
+    }
+    try {
+      await resolveReachProbe(userId, chatId, choice);
+    } catch (err) {
+      // Surface to the WS channel — the frontend renders a chat error
+      // bubble. We re-throw so BaseAgent logs the failure too.
+      try {
+        await publishChatEvent(chatId, 'error', {
+          message: (err as Error).message,
+        });
+      } catch {
+        /* swallow — original error wins */
+      }
+      throw err;
+    }
+  }
+
   async reflect(_result: unknown): Promise<void> {
     // No-op for M3. M5 Learning Agent will populate this.
   }
@@ -140,7 +197,13 @@ export class OrchestratorAgent extends BaseAgent {
    * Exported as `static` for testability (no this-bound state needed).
    */
   static buildSkipReplyTemplate(
-    target: Exclude<ConversationState, 'welcome'>,
+    target: Exclude<
+      ConversationState,
+      // Same narrowing as IntentHookResult.skipTo — the post-fetch probe
+      // state and the terminal `enriching` state are never reached via
+      // the M9.4 skip path.
+      'welcome' | 'awaiting_reach_upgrade_consent' | 'enriching'
+    >,
     intent: Intent,
   ): string {
     // Per-slot acknowledgement clause. Only mention slots that DID get
@@ -322,7 +385,10 @@ export class OrchestratorAgent extends BaseAgent {
    * chips (for the target state), contextPatch (sets state=target).
    */
   async actAfterIntentSkip(
-    target: Exclude<ConversationState, 'welcome' | 'awaiting_date'>,
+    target: Exclude<
+      ConversationState,
+      'welcome' | 'awaiting_date' | 'awaiting_reach_upgrade_consent' | 'enriching'
+    >,
     intent: Intent,
   ): Promise<OrchestratorResult> {
     const template = OrchestratorAgent.buildSkipReplyTemplate(target, intent);
@@ -349,7 +415,10 @@ export class OrchestratorAgent extends BaseAgent {
    * delta-by-delta over the chat's WS channel, then emits `typing:stop`.
    */
   async actAfterIntentSkipStreaming(
-    target: Exclude<ConversationState, 'welcome' | 'awaiting_date'>,
+    target: Exclude<
+      ConversationState,
+      'welcome' | 'awaiting_date' | 'awaiting_reach_upgrade_consent' | 'enriching'
+    >,
     intent: Intent,
     chatId: string,
     assistantMessageId: string,
@@ -425,6 +494,29 @@ export class OrchestratorAgent extends BaseAgent {
         return result as T;
       }
     }
+    // M9.5.5 — if the message arrived while the chat is in the reach
+    // probe state, inline the lifecycle here so we have both the
+    // advanceInput AND the contextPatch in scope. Side-effects (chat_params
+    // patch + EnrichmentAgent dispatch) only fire on a successful
+    // transition to `enriching`; an invalid choice stays in the probe
+    // state and re-prompts, never dispatching enrichment.
+    if (state === 'awaiting_reach_upgrade_consent' && input.chatId) {
+      const ctx = await this.perceive(input);
+      const reasoned = (await this.reason(ctx)) as Reasoned;
+      const planItem = (await this.plan(reasoned)) as PlanItem;
+      const actResult = (await this.act(planItem)) as ActOutput;
+      await this.runReachProbeSideEffect(
+        state,
+        reasoned.advanceInput,
+        actResult.contextPatch,
+        input.userId,
+        input.chatId,
+      );
+      await this.reflect(actResult);
+      await this.learn(actResult);
+      await this.logAction('execute_reach_probe', input, actResult, 0);
+      return actResult as T;
+    }
     return super.execute<T>(input);
   }
 
@@ -478,6 +570,18 @@ export class OrchestratorAgent extends BaseAgent {
         input.chatId,
         input.assistantMessageId,
       );
+      // M9.5.5 — same probe-state side-effect dispatch as `execute()`,
+      // gated on `contextPatch.state === 'enriching'` so invalid-choice
+      // re-prompts (which stay in the probe state) skip enrichment.
+      if (state === 'awaiting_reach_upgrade_consent') {
+        await this.runReachProbeSideEffect(
+          state,
+          goal.advanceInput,
+          result.contextPatch,
+          input.userId,
+          input.chatId,
+        );
+      }
       await this.reflect(result);
       await this.learn(result);
       const duration = Date.now() - start;

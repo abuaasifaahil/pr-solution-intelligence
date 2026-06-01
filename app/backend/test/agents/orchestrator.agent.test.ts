@@ -76,6 +76,15 @@ vi.mock('../../src/lib/event-bus.js', () => ({
   publishAgentBus: vi.fn(),
 }));
 
+// M9.5.5 — mock the reach-probe service so the orchestrator's side-effect
+// dispatch path can be asserted without touching Prisma or hitting the
+// agent bus.
+const resolveReachProbeMock = vi.fn(async () => {});
+vi.mock('../../src/services/reach-probe.service.js', () => ({
+  resolveReachProbe: resolveReachProbeMock,
+  enterReachProbe: vi.fn(),
+}));
+
 // Silence agent_logs DB writes during tests.
 vi.mock('@prsi/shared/db', () => ({
   prisma: {
@@ -131,6 +140,8 @@ describe('OrchestratorAgent.execute', () => {
     markIntentExtractedMock.mockClear();
     getOrCreateParamsMock.mockClear();
     publishChatEventMock.mockClear();
+    resolveReachProbeMock.mockClear();
+    resolveReachProbeMock.mockResolvedValue(undefined);
     resetParamsFixture();
   });
 
@@ -212,6 +223,8 @@ describe('OrchestratorAgent.execute — M9.4 intent extraction hook', () => {
     markIntentExtractedMock.mockClear();
     getOrCreateParamsMock.mockClear();
     publishChatEventMock.mockClear();
+    resolveReachProbeMock.mockClear();
+    resolveReachProbeMock.mockResolvedValue(undefined);
     resetParamsFixture();
   });
 
@@ -429,5 +442,128 @@ describe('OrchestratorAgent.execute — M9.4 intent extraction hook', () => {
     expect(eventTypes).toContain('intent:extracted');
     // State advances via normal welcome→awaiting_date path.
     expect(out.contextPatch.state).toBe('awaiting_date');
+  });
+});
+
+// ─── M9.5.5 — reach-probe state side-effect dispatch ─────────────────────
+describe('OrchestratorAgent.execute — M9.5.5 reach probe state', () => {
+  beforeEach(() => {
+    (chatComplete as any).mockClear();
+    (parseChoice as any).mockClear();
+    extractIntentMock.mockReset();
+    applyIntentMock.mockClear();
+    markIntentExtractedMock.mockClear();
+    getOrCreateParamsMock.mockClear();
+    publishChatEventMock.mockClear();
+    resolveReachProbeMock.mockClear();
+    resolveReachProbeMock.mockResolvedValue(undefined);
+    resetParamsFixture();
+  });
+
+  it('valid chip click "upgrade_similarweb" → resolveReachProbe called with the choice', async () => {
+    const agent = new OrchestratorAgent('pr-impact-id', 'PR Impact Agent', 'pr_impact');
+    const out = await agent.execute<OrchestratorResult>({
+      userId: 'u1',
+      chatId: 'c1',
+      message: 'add similarweb',
+      metadata: {
+        currentState: 'awaiting_reach_upgrade_consent',
+        currentContext: { state: 'awaiting_reach_upgrade_consent' },
+        choice: 'upgrade_similarweb',
+      },
+    });
+
+    expect(resolveReachProbeMock).toHaveBeenCalledTimes(1);
+    expect(resolveReachProbeMock).toHaveBeenCalledWith('u1', 'c1', 'upgrade_similarweb');
+    // The wizard advances out of the probe state.
+    expect(out.contextPatch.state).toBe('enriching');
+    expect(out.chips).toEqual([]);
+    // No intent extraction on this path (state is not 'welcome').
+    expect(extractIntentMock).not.toHaveBeenCalled();
+  });
+
+  it('valid chip click "continue_without_reach" → resolveReachProbe called with the choice', async () => {
+    const agent = new OrchestratorAgent('pr-impact-id', 'PR Impact Agent', 'pr_impact');
+    const out = await agent.execute<OrchestratorResult>({
+      userId: 'u1',
+      chatId: 'c1',
+      message: 'continue without reach',
+      metadata: {
+        currentState: 'awaiting_reach_upgrade_consent',
+        currentContext: { state: 'awaiting_reach_upgrade_consent' },
+        choice: 'continue_without_reach',
+      },
+    });
+
+    expect(resolveReachProbeMock).toHaveBeenCalledTimes(1);
+    expect(resolveReachProbeMock).toHaveBeenCalledWith(
+      'u1',
+      'c1',
+      'continue_without_reach',
+    );
+    expect(out.contextPatch.state).toBe('enriching');
+  });
+
+  it('invalid choice ("gibberish") → resolveReachProbe NOT called, stays in probe state', async () => {
+    const agent = new OrchestratorAgent('pr-impact-id', 'PR Impact Agent', 'pr_impact');
+    const out = await agent.execute<OrchestratorResult>({
+      userId: 'u1',
+      chatId: 'c1',
+      message: 'gibberish',
+      metadata: {
+        currentState: 'awaiting_reach_upgrade_consent',
+        currentContext: { state: 'awaiting_reach_upgrade_consent' },
+        choice: 'gibberish',
+      },
+    });
+
+    expect(resolveReachProbeMock).not.toHaveBeenCalled();
+    // Re-prompt: stay in probe state, chips re-issued.
+    expect(out.contextPatch.state).toBeUndefined();
+    expect(out.chips.map((c) => c.value)).toEqual([
+      'upgrade_similarweb',
+      'continue_without_reach',
+    ]);
+  });
+
+  it('free-text in probe state without a parsed choice → resolveReachProbe NOT called', async () => {
+    // parseChoice returns null → advanceInput becomes { freeText: ... }
+    // → advance() falls through to the "stay in state" branch.
+    (parseChoice as any).mockResolvedValueOnce(null);
+
+    const agent = new OrchestratorAgent('pr-impact-id', 'PR Impact Agent', 'pr_impact');
+    await agent.execute<OrchestratorResult>({
+      userId: 'u1',
+      chatId: 'c1',
+      message: 'what are these options?',
+      metadata: {
+        currentState: 'awaiting_reach_upgrade_consent',
+        currentContext: { state: 'awaiting_reach_upgrade_consent' },
+      },
+    });
+
+    expect(resolveReachProbeMock).not.toHaveBeenCalled();
+  });
+
+  it('resolveReachProbe error surfaces as a chat error event and re-throws', async () => {
+    resolveReachProbeMock.mockRejectedValueOnce(new Error('dispatch failed'));
+
+    const agent = new OrchestratorAgent('pr-impact-id', 'PR Impact Agent', 'pr_impact');
+    await expect(
+      agent.execute<OrchestratorResult>({
+        userId: 'u1',
+        chatId: 'c1',
+        message: 'add similarweb',
+        metadata: {
+          currentState: 'awaiting_reach_upgrade_consent',
+          currentContext: { state: 'awaiting_reach_upgrade_consent' },
+          choice: 'upgrade_similarweb',
+        },
+      }),
+    ).rejects.toThrow(/dispatch failed/);
+
+    const errorEvents = publishChatEventMock.mock.calls.filter((c) => c[1] === 'error');
+    expect(errorEvents).toHaveLength(1);
+    expect((errorEvents[0]![2] as { message: string }).message).toMatch(/dispatch failed/);
   });
 });

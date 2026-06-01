@@ -160,6 +160,28 @@ vi.mock('../../src/lib/event-bus.js', () => ({
   subscribeChatEvents: vi.fn(),
 }));
 
+// ─── reach-probe service (M9.5.5) ───────────────────────────────────────
+// SearchAgent's reflect path now delegates to enterReachProbe instead of
+// emitting `reach:absent` directly. The probe service is responsible for
+// the WS event AND the chat-state transition. We mock it to (a) verify
+// SearchAgent invokes it AND (b) keep the test assertions on the
+// `reach:absent` event working — the mock re-emits the event so the
+// existing event-count assertions still pass.
+const enterReachProbeMock = vi.fn(
+  async (input: { chatId: string; coverageReach: number; sampleSize: number }) => {
+    await publishChatEventMock(input.chatId, 'reach:absent', {
+      chatId: input.chatId,
+      coverageReach: input.coverageReach,
+      sampleSize: input.sampleSize,
+      suggestUpgrade: true,
+    });
+  },
+);
+vi.mock('../../src/services/reach-probe.service.js', () => ({
+  enterReachProbe: enterReachProbeMock,
+  resolveReachProbe: vi.fn(),
+}));
+
 // ─── Prisma + withUser ───────────────────────────────────────────────────
 const mockChatParams = {
   findUnique: vi.fn(async ({ where }: { where: { chatId: string } }) =>
@@ -266,6 +288,7 @@ beforeEach(() => {
   envPageSize = 500;
   publishChatEventMock.mockClear();
   publishAgentBusMock.mockClear();
+  enterReachProbeMock.mockClear();
   searchMock.mockClear();
   resolveIndicesMock.mockClear();
   bulkInsertMock.mockClear();
@@ -349,7 +372,7 @@ describe('SearchAgent — empty results', () => {
 });
 
 describe('SearchAgent — reach presence gate', () => {
-  it('reach absent + enrichmentType=standard → emits reach:absent, search:complete NOT emitted, search_history still recorded', async () => {
+  it('reach absent + enrichmentType=standard → invokes enterReachProbe (which emits reach:absent), search:complete NOT emitted, search_history still recorded', async () => {
     seed({ enrichmentType: 'standard' });
     scriptedTotalHits = 50;
     // All hits missing reach.
@@ -363,6 +386,15 @@ describe('SearchAgent — reach presence gate', () => {
       metadata: { queryId: QUERY },
     })) as { paused: boolean };
 
+    // M9.5.5: SearchAgent delegates to enterReachProbe (one call, the
+    // service emits reach:absent + pins chat state). The mocked service
+    // re-emits the WS event so the existing assertion still holds.
+    expect(enterReachProbeMock).toHaveBeenCalledTimes(1);
+    expect(enterReachProbeMock.mock.calls[0]![0]).toMatchObject({
+      chatId: CHAT,
+      coverageReach: 0,
+      sampleSize: 50,
+    });
     expect(eventsOfType('reach:absent')).toHaveLength(1);
     expect(eventsOfType('search:complete')).toHaveLength(0);
     expect(publishAgentBusMock).not.toHaveBeenCalled();

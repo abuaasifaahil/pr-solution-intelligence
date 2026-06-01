@@ -186,3 +186,91 @@ describe('orchestrator-state — M9.4 auto-skip', () => {
     expect(CHIPS_FOR_STATE.ready).toEqual([]);
   });
 });
+
+// ─── M9.5.5 — reach upgrade probe state ───────────────────────────────────
+describe('orchestrator-state — M9.5.5 reach upgrade probe', () => {
+  it('CHIPS_FOR_STATE.awaiting_reach_upgrade_consent has the two probe chips', () => {
+    const chips = CHIPS_FOR_STATE.awaiting_reach_upgrade_consent;
+    expect(chips.map((c) => c.value)).toEqual([
+      'upgrade_similarweb',
+      'continue_without_reach',
+    ]);
+    expect(chips[0]!.label).toContain('SimilarWeb');
+    expect(chips[1]!.label.toLowerCase()).toContain('continue');
+  });
+
+  it('CHIPS_FOR_STATE.enriching is empty (terminal hand-off state)', () => {
+    expect(CHIPS_FOR_STATE.enriching).toEqual([]);
+  });
+
+  it('advance(probe, choice=upgrade_similarweb) → next="enriching", reply mentions SimilarWeb', () => {
+    const r = advance(
+      'awaiting_reach_upgrade_consent',
+      { choice: 'upgrade_similarweb' },
+      'pr_impact',
+    );
+    expect(r.newState).toBe<ConversationState>('enriching');
+    expect(r.contextPatch.state).toBe('enriching');
+    expect(r.chips).toEqual([]);
+    expect(r.replyTemplate.toLowerCase()).toContain('similarweb');
+  });
+
+  it('advance(probe, choice=continue_without_reach) → next="enriching", reply mentions comment-based', () => {
+    const r = advance(
+      'awaiting_reach_upgrade_consent',
+      { choice: 'continue_without_reach' },
+      'pr_impact',
+    );
+    expect(r.newState).toBe<ConversationState>('enriching');
+    expect(r.contextPatch.state).toBe('enriching');
+    expect(r.chips).toEqual([]);
+    expect(r.replyTemplate.toLowerCase()).toContain('comment-based');
+  });
+
+  it('advance(probe, choice=gibberish) → stays in probe state, chips re-issued', () => {
+    const r = advance(
+      'awaiting_reach_upgrade_consent',
+      { choice: 'gibberish' },
+      'pr_impact',
+    );
+    expect(r.newState).toBe<ConversationState>('awaiting_reach_upgrade_consent');
+    // Stay-in-state: no state patch.
+    expect(r.contextPatch.state).toBeUndefined();
+    expect(r.chips.map((c) => c.value)).toEqual([
+      'upgrade_similarweb',
+      'continue_without_reach',
+    ]);
+  });
+
+  it('advance(probe, freeText="hello") → stays in probe state', () => {
+    const r = advance(
+      'awaiting_reach_upgrade_consent',
+      { freeText: 'hello' },
+      'pr_impact',
+    );
+    expect(r.newState).toBe<ConversationState>('awaiting_reach_upgrade_consent');
+  });
+
+  it('advance(enriching, anything) → stays in enriching with no chips', () => {
+    const r = advance('enriching', { freeText: 'when will it be done?' }, 'pr_impact');
+    expect(r.newState).toBe<ConversationState>('enriching');
+    expect(r.chips).toEqual([]);
+  });
+
+  it('nextUnfilledState never returns awaiting_reach_upgrade_consent or enriching', () => {
+    // Even with every wizard slot filled, the function returns "ready"
+    // (its terminal wizard state), not the post-fetch probe state.
+    const allFilled = nextUnfilledState({
+      dateStart: new Date('2026-04-01'),
+      dateEnd: new Date('2026-05-01'),
+      enrichmentType: 'standard',
+      brand: 'FreshSip',
+      competitors: ['PepsiCo', 'Coca-Cola'],
+      intention: 'intention_based',
+    });
+    expect(allFilled).toBe<ConversationState>('ready');
+    // And on an empty shape it falls back to 'awaiting_date' — never
+    // the probe states.
+    expect(nextUnfilledState({})).toBe<ConversationState>('awaiting_date');
+  });
+});

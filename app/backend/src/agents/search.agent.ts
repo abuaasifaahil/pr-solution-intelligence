@@ -52,6 +52,7 @@ import {
   findCachedSearch,
   recordSearchExecution,
 } from '../services/search-history.service.js';
+import { enterReachProbe } from '../services/reach-probe.service.js';
 import { hasOpenSearchConfig, loadEnv } from '../env.js';
 import { MediaTypeSchema, type MediaType } from '../lib/media-types.js';
 import type { BooleanQueryStructured } from '../lib/boolean-query-engine.js';
@@ -426,18 +427,23 @@ export class SearchAgent extends BaseAgent {
     });
     r.coverageReach = presence.coverage.reach;
 
-    // Probe gate: only emit `reach:absent` for the (standard enrichment
+    // Probe gate: only run the reach probe for the (standard enrichment
     // + low coverage) combo. In the other branches (reach enrichment,
     // OR presence ≥ threshold) the enrichment path knows what to do.
+    //
+    // M9.5.5: the probe lives in `reach-probe.service` — it emits
+    // `reach:absent` AND pins `chat.context.state` to
+    // `awaiting_reach_upgrade_consent` so a reconnect resumes the same
+    // probe. The service is agent-class-agnostic so the M9.6 adapter
+    // refactor (ADR-0001) leaves this dispatch untouched.
     if (
       ctx.enrichmentType === 'standard' &&
       presence.coverage.reach < PRESENCE_THRESHOLD
     ) {
-      await publishChatEvent(ctx.chatId, 'reach:absent', {
+      await enterReachProbe({
         chatId: ctx.chatId,
         coverageReach: presence.coverage.reach,
         sampleSize: presence.sampleSize,
-        suggestUpgrade: true,
       });
       r.paused = true;
     }
