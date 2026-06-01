@@ -167,6 +167,7 @@ model Chat {
   booleanQueries BooleanQuery[]
   enrichments    Enrichment[]
   enrichmentJobs EnrichmentJob[]
+  searchHistory  SearchHistory[]
 
   @@index([userId, status])
   @@index([createdAt])
@@ -347,6 +348,12 @@ model Article {
   publisherDomain String?   @map("publisher_domain") @db.VarChar(255)
   language        String    @default("en") @db.VarChar(10)
   rawData         Json      @default("{}") @map("raw_data")
+  /// Phase 3.5 (M9.5) — the OpenSearch document `_id` for articles fetched
+  /// via SearchAgent. NULL for CSV-uploaded articles. Combined with chatId
+  /// in a UNIQUE partial index so the bulk-insert dedup-on-rerun guarantee
+  /// holds without affecting CSV rows (chat_id, NULL) which Postgres
+  /// considers non-unique by default.
+  openSearchId    String?   @map("open_search_id")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   upload     Upload?     @relation(fields: [uploadId], references: [id], onDelete: SetNull)
@@ -547,4 +554,32 @@ model ReachCache {
 
   @@index([fetchedAt])
   @@map("reach_cache")
+}
+
+// ─── Phase 3.5 (M9.5) — SearchAgent memory ────────────────────────────────
+
+/// Per-chat OpenSearch fetch outcomes. Written every time SearchAgent
+/// completes a search loop (success OR reach-absent pause). Future
+/// invocations can short-circuit when the same `queryHash` re-appears
+/// (deterministic hash of the structured query — see lib/query-hash.ts).
+///
+/// `articleIds` stores the OpenSearch `_id` list (not internal article
+/// UUIDs) so memory survives cache-rebuilds of the local articles table.
+/// `coverageReach` is nullable for runs where presence detection was
+/// skipped (e.g. zero-hits result).
+model SearchHistory {
+  id             String   @id @default(uuid()) @db.Uuid
+  chatId         String   @map("chat_id") @db.Uuid
+  queryHash      String   @map("query_hash") @db.VarChar(64)
+  articleIds     String[] @map("article_ids")
+  totalHits      Int      @map("total_hits")
+  indicesQueried String[] @map("indices_queried")
+  coverageReach  Float?   @map("coverage_reach")
+  executedAt     DateTime @default(now()) @map("executed_at") @db.Timestamptz(6)
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, queryHash])
+  @@index([chatId, executedAt(sort: Desc)])
+  @@map("search_history")
 }

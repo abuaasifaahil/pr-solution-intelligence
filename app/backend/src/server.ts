@@ -21,6 +21,7 @@ import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { DataExtractAgent } from './agents/data-extract.agent.js';
 import { EnrichmentAgent } from './agents/enrichment.agent.js';
 import { SimilarWebAgent } from './agents/similarweb.agent.js';
+import { SearchAgent } from './agents/search.agent.js';
 import { startEnrichmentSubscriber } from './agents/enrichment-subscriber.js';
 import { AgentRegistry } from './agents/agent-registry.js';
 import { startInlineWorker } from './lib/queue.js';
@@ -90,6 +91,19 @@ async function bootstrapAgents(): Promise<void> {
         '00000000-0000-0000-0000-0000005e4cb1', // sentinel UUID (5e4cb1 ~= "search")
         'SimilarWeb Agent',
         'similarweb',
+      ),
+    );
+  }
+  // Phase 3.5 — M9.5: SearchAgent singleton. Same pattern as the other
+  // Phase 2/3 singletons — no agents-table row, sentinel UUID, logAction
+  // overridden to no-op. Dispatched by the `data-extract` BullMQ worker
+  // when chat_params.data_source == 'opensearch'.
+  if (!AgentRegistry.has('search')) {
+    AgentRegistry.register(
+      new SearchAgent(
+        '00000000-0000-0000-0000-00000053ea4c', // sentinel UUID (53ea4c ~= "Search")
+        'Search Agent',
+        'search',
       ),
     );
   }

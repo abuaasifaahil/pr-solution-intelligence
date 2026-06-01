@@ -85,4 +85,57 @@ describe('event-bus', () => {
     await publishChatEvent('chat-1', 'message:chunk', { assistantMessageId: 'a1', delta: 'x' });
     expect(received).toHaveLength(0);
   });
+
+  // M9.5 — SearchAgent event types are routable through the same channel.
+  // We assert delivery here; the discriminated union is enforced at the
+  // TypeScript layer (tsc would have rejected an unknown event name).
+  it('routes M9.5 SearchAgent events end-to-end', async () => {
+    const received: Array<{ type: string; payload: unknown }> = [];
+    const unsubscribe = await subscribeChatEvents('chat-1', (e) => {
+      received.push(e);
+    });
+
+    await publishChatEvent('chat-1', 'search:start', {
+      chatId: 'chat-1',
+      totalIndicesQueried: 17,
+      indicesPreview: ['amx-data-*'],
+    });
+    await publishChatEvent('chat-1', 'search:progress', {
+      chatId: 'chat-1',
+      totalSoFar: 100,
+      pagesScanned: 1,
+      lastPage: false,
+    });
+    await publishChatEvent('chat-1', 'search:fetched', {
+      chatId: 'chat-1',
+      articlesInserted: 500,
+      indicesQueried: ['amx-data-*'],
+      latencyMsTotal: 1234,
+    });
+    await publishChatEvent('chat-1', 'reach:absent', {
+      chatId: 'chat-1',
+      coverageReach: 0.2,
+      sampleSize: 50,
+      suggestUpgrade: true,
+    });
+    await publishChatEvent('chat-1', 'search:complete', {
+      chatId: 'chat-1',
+      ready: true,
+      count: 500,
+    });
+    await publishChatEvent('chat-1', 'search:error', {
+      chatId: 'chat-1',
+      message: 'Invalid OpenSearch query syntax or parameters.',
+    });
+
+    expect(received.map((r) => r.type)).toEqual([
+      'search:start',
+      'search:progress',
+      'search:fetched',
+      'reach:absent',
+      'search:complete',
+      'search:error',
+    ]);
+    await unsubscribe();
+  });
 });
