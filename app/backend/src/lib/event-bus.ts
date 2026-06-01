@@ -29,13 +29,20 @@ export type ChatEventType =
   //                    will retry (retry_count ≤ MAX_RETRIES) or give up
   //   progress       — running tally toward the job total, percent included
   //   complete       — final job-level event after the last batch settles
-  // The remaining `reach-*` / `json-ready` set lands with M8.6 / M8.7.
+  // M8.6 adds the parallel reach pipeline driven by SimilarWebAgent:
+  //   reach-start    — fan-out begins (after DISTINCT publisher_domain query)
+  //   reach-complete — merge into enrichments.reach JSONB done; coverage stats
+  // The reach-* events fire INDEPENDENTLY of `enrichment:complete` (LLM side);
+  // the frontend treats them as two separate signals and waits for both when
+  // enrichmentType=='reach'. The remaining `json-ready` lands with M8.7.
   | 'enrichment:start'
   | 'enrichment:batch-start'
   | 'enrichment:batch-complete'
   | 'enrichment:batch-error'
   | 'enrichment:progress'
-  | 'enrichment:complete';
+  | 'enrichment:complete'
+  | 'enrichment:reach-start'
+  | 'enrichment:reach-complete';
 
 export interface ChatEvent {
   type: ChatEventType;
