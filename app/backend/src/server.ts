@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance, type preHandlerAsyncHookHandler } from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import websocket from '@fastify/websocket';
 import type { Processor } from 'bullmq';
 import { healthzRoute } from './routes/healthz.js';
@@ -10,6 +11,7 @@ import { dataSourceRoutes } from './routes/data-source.routes.js';
 import { mcpRoutes } from './routes/mcp.routes.js';
 import { modelConfigRoutes } from './routes/model-config.routes.js';
 import { skillRoutes } from './routes/skill.routes.js';
+import { uploadRoutes } from './routes/upload.routes.js';
 import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
@@ -52,6 +54,16 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(websocket, {
     options: { maxPayload: 1024 * 1024 /* 1MB */ },
   });
+  // Phase 2 — file uploads (≤50 MB). Used by /api/v1/uploads. The size cap
+  // is enforced by @fastify/multipart itself: oversize bodies short-circuit
+  // with a 413 before reaching our handler.
+  await app.register(multipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50 MB per spec §5.1
+      files: 1,
+      fields: 5,
+    },
+  });
   app.decorate('auth', authMiddleware);
   await bootstrapAgents();
   await app.register(healthzRoute);
@@ -62,6 +74,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(mcpRoutes);
   await app.register(modelConfigRoutes);
   await app.register(skillRoutes);
+  await app.register(uploadRoutes);
   await app.register(wsRoutes);
 
   // Boot the BullMQ inline worker. Phase 2 jobs register their processors
