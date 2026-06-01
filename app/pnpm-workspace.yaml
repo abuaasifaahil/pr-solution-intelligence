@@ -9,3 +9,5 @@ allowBuilds:
   bcrypt: true
   esbuild: true
   prisma: true
+  # Phase 2 (M7.2): BullMQ pulls msgpackr-extract as a transitive native dep.
+  msgpackr-extract: true
