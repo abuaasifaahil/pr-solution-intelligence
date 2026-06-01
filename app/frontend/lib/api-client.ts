@@ -17,7 +17,10 @@ export async function apiFetch<T = unknown>(
   const { accessToken } = useAuthStore.getState();
   const url = path.startsWith('http') ? path : `${API_URL}${path}`;
   const headers = new Headers(init.headers);
-  if (!headers.has('content-type') && init.body) {
+  // Do NOT auto-set content-type for multipart bodies — the browser fills in
+  // the boundary parameter only when it's writing the Content-Type itself.
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
+  if (!headers.has('content-type') && init.body && !isFormData) {
     headers.set('content-type', 'application/json');
   }
   if (accessToken) headers.set('authorization', `Bearer ${accessToken}`);

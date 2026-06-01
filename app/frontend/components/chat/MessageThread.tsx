@@ -3,13 +3,32 @@ import { useEffect, useMemo, useRef } from 'react';
 import { MessageBubble } from './MessageBubble';
 import { ChatActionPrompt } from './ChatActionPrompt';
 import type { ChatActionOption, ChatActionResult } from './ChatActionPrompt';
+import { FileDropZone } from './FileDropZone';
+import { UploadProgressCard } from './UploadProgressCard';
+import { DataPreviewTable } from './DataPreviewTable';
 import type { ChatMessage, ChipDef } from '../../lib/chats';
+import type { UploadStatus, UploadPreview } from '../../lib/uploads';
 
 interface Props {
   messages: ChatMessage[];
   onChipPick: (chip: ChipDef) => void;
   onCustomReply?: (text: string) => void;
   busy?: boolean;
+
+  // ── Phase 2 — upload state (M7.8) ────────────────────────────────────────
+  /** The current upload row from the API + WS. Null when no upload yet. */
+  upload?: UploadStatus | null;
+  /** 0-100 from `upload:progress` WS events. */
+  uploadProgress?: number;
+  /** First N parsed rows + columns from /uploads/:id/preview. */
+  uploadPreview?: UploadPreview | null;
+  /** Called when the user drops / picks a file. */
+  onFileDrop?: (file: File) => void;
+  /** Called when the user clicks × on the upload card. */
+  onUploadRemove?: () => void;
+  /** Enables the empty-state drop zone. Off by default so the existing
+   *  Phase-1 chats render unchanged. */
+  allowUpload?: boolean;
 }
 
 /**
@@ -17,13 +36,28 @@ interface Props {
  * an inline ChatActionPrompt (Claude Code style). Picking a chip routes
  * through onChipPick; picking the auto-added "Other — type your own" row
  * routes through onCustomReply (free-text path).
+ *
+ * Phase 2 additions (M7.8): renders a FileDropZone in the empty state, an
+ * UploadProgressCard while a file is in flight, and a DataPreviewTable once
+ * the parse worker has finished.
  */
-export function MessageThread({ messages, onChipPick, onCustomReply, busy }: Props) {
+export function MessageThread({
+  messages,
+  onChipPick,
+  onCustomReply,
+  busy,
+  upload,
+  uploadProgress,
+  uploadPreview,
+  onFileDrop,
+  onUploadRemove,
+  allowUpload,
+}: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length, busy]);
+  }, [messages.length, busy, upload?.status, uploadPreview]);
 
   const last = messages[messages.length - 1];
   const lastChips: ChipDef[] = last?.role === 'assistant' ? (last.metadata.chips ?? []) : [];
@@ -45,11 +79,34 @@ export function MessageThread({ messages, onChipPick, onCustomReply, busy }: Pro
     if (chip) onChipPick(chip);
   }
 
+  const showDropZone =
+    !!allowUpload && !!onFileDrop && messages.length === 0 && !upload;
+
   return (
     <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3.5">
       {messages.map((m) => (
         <MessageBubble key={m.id} message={m} />
       ))}
+
+      {upload && (
+        <UploadProgressCard
+          upload={upload}
+          progressPercent={uploadProgress}
+          onRemove={onUploadRemove}
+        />
+      )}
+
+      {upload?.status === 'ready' && uploadPreview && (
+        <DataPreviewTable
+          rows={uploadPreview.rows}
+          columns={uploadPreview.columns}
+          total={uploadPreview.total}
+        />
+      )}
+
+      {showDropZone && onFileDrop && (
+        <FileDropZone onFile={onFileDrop} />
+      )}
 
       {!busy && promptOptions.length > 0 && (
         <div className="pl-10">

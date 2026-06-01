@@ -12,6 +12,30 @@ export interface NewMessagePayload {
 }
 export interface ErrorPayload { assistantMessageId?: string; message: string }
 
+// ── Phase 2 (M7.4 / M7.5) — upload + flow event payloads ────────────────────
+export interface UploadProgressPayload {
+  uploadId: string;
+  percent: number;
+  phase: string;
+}
+export interface UploadParsedPayload {
+  uploadId: string;
+  rowCount: number;
+  columns: string[];
+  dateRange: { start: string; end: string } | null;
+  schema: unknown[];
+}
+export interface UploadErrorPayload {
+  uploadId: string;
+  error: string;
+}
+export interface FlowStateChangePayload {
+  /** From / to are the FlowState enum string values; we keep them as plain
+   *  strings here so the frontend doesn't have to import Prisma. */
+  fromState: string;
+  toState: string;
+}
+
 export interface ChatStreamConfig {
   apiUrl: string;          // e.g. http://localhost:3001 or https://prsi-api.onrender.com
   chatId: string;
@@ -24,7 +48,15 @@ type ServerEvent =
   | { type: 'message:chunk'; payload: ChunkPayload }
   | { type: 'message:new'; payload: NewMessagePayload }
   | { type: 'agent:progress'; payload: unknown }
-  | { type: 'error'; payload: ErrorPayload };
+  | { type: 'error'; payload: ErrorPayload }
+  | { type: 'upload:progress'; payload: UploadProgressPayload }
+  | { type: 'upload:parsed'; payload: UploadParsedPayload }
+  | { type: 'upload:error'; payload: UploadErrorPayload }
+  | { type: 'flow:state-change'; payload: FlowStateChangePayload }
+  // M7.7-era events — wired by M7.9, but tolerated here so they don't
+  // produce noisy JSON-parse warnings on the console.
+  | { type: 'processing:step'; payload: unknown }
+  | { type: 'processing:complete'; payload: unknown };
 
 /**
  * Auto-reconnecting WebSocket client for /ws/chat/:chatId.
@@ -42,6 +74,10 @@ export class ChatStream {
   private messageHandlers: Array<(p: NewMessagePayload) => void> = [];
   private typingHandlers: Array<(start: boolean, p: { assistantMessageId: string }) => void> = [];
   private errorHandlers: Array<(p: ErrorPayload) => void> = [];
+  private uploadProgressHandlers: Array<(p: UploadProgressPayload) => void> = [];
+  private uploadParsedHandlers: Array<(p: UploadParsedPayload) => void> = [];
+  private uploadErrorHandlers: Array<(p: UploadErrorPayload) => void> = [];
+  private flowStateHandlers: Array<(p: FlowStateChangePayload) => void> = [];
 
   constructor(private readonly config: ChatStreamConfig) {}
 
@@ -89,6 +125,20 @@ export class ChatStream {
   }
   onError(cb: (p: ErrorPayload) => void): void { this.errorHandlers.push(cb); }
 
+  // ── Phase 2 handler registrations ─────────────────────────────────────────
+  onUploadProgress(cb: (p: UploadProgressPayload) => void): void {
+    this.uploadProgressHandlers.push(cb);
+  }
+  onUploadParsed(cb: (p: UploadParsedPayload) => void): void {
+    this.uploadParsedHandlers.push(cb);
+  }
+  onUploadError(cb: (p: UploadErrorPayload) => void): void {
+    this.uploadErrorHandlers.push(cb);
+  }
+  onFlowStateChange(cb: (p: FlowStateChangePayload) => void): void {
+    this.flowStateHandlers.push(cb);
+  }
+
   private dispatch(evt: ServerEvent): void {
     switch (evt.type) {
       case 'typing:start':
@@ -106,8 +156,23 @@ export class ChatStream {
       case 'error':
         for (const h of this.errorHandlers) h(evt.payload);
         return;
+      case 'upload:progress':
+        for (const h of this.uploadProgressHandlers) h(evt.payload);
+        return;
+      case 'upload:parsed':
+        for (const h of this.uploadParsedHandlers) h(evt.payload);
+        return;
+      case 'upload:error':
+        for (const h of this.uploadErrorHandlers) h(evt.payload);
+        return;
+      case 'flow:state-change':
+        for (const h of this.flowStateHandlers) h(evt.payload);
+        return;
       case 'agent:progress':
-        // Phase 3+ event; ignored in Phase 1.
+      case 'processing:step':
+      case 'processing:complete':
+        // Wired by M7.9 (processing UX). Acknowledged here so unknown-type
+        // logs don't trip during the upload flow.
         return;
     }
   }
