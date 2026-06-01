@@ -16,11 +16,16 @@ import { chatParamsRoutes } from './routes/chat-params.routes.js';
 import { booleanQueryRoutes } from './routes/boolean-query.routes.js';
 import { enrichmentRoutes } from './routes/enrichment.routes.js';
 import { wsRoutes } from './routes/ws.routes.js';
+// ── M9.7 (Phase 3.5) — probe + per-user agents + composable skills ──
+import { probeRoutes } from './routes/probe.routes.js';
+import { userAgentRoutes } from './routes/user-agent.routes.js';
+import { composableSkillRoutes } from './routes/composable-skill.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { DataExtractAgent } from './agents/data-extract.agent.js';
 import { EnrichmentAgent } from './agents/enrichment.agent.js';
 import { SimilarWebAgent } from './agents/similarweb.agent.js';
+import { SearchAgent } from './agents/search.agent.js';
 import { startEnrichmentSubscriber } from './agents/enrichment-subscriber.js';
 import { AgentRegistry } from './agents/agent-registry.js';
 import { startInlineWorker } from './lib/queue.js';
@@ -93,6 +98,19 @@ async function bootstrapAgents(): Promise<void> {
       ),
     );
   }
+  // Phase 3.5 — M9.5: SearchAgent singleton. Same pattern as the other
+  // Phase 2/3 singletons — no agents-table row, sentinel UUID, logAction
+  // overridden to no-op. Dispatched by the `data-extract` BullMQ worker
+  // when chat_params.data_source == 'opensearch'.
+  if (!AgentRegistry.has('search')) {
+    AgentRegistry.register(
+      new SearchAgent(
+        '00000000-0000-0000-0000-00000053ea4c', // sentinel UUID (53ea4c ~= "Search")
+        'Search Agent',
+        'search',
+      ),
+    );
+  }
 }
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -135,6 +153,11 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(booleanQueryRoutes);
   await app.register(enrichmentRoutes);
   await app.register(wsRoutes);
+  // M9.7 (Phase 3.5) — new REST surface for the chat-entry probe flow
+  // (ADR-0003 D2) and per-user agent/skill authoring (ADR-0003 D4).
+  await app.register(probeRoutes);
+  await app.register(userAgentRoutes);
+  await app.register(composableSkillRoutes);
 
   // Boot the BullMQ inline worker. Phase 2 jobs register their processors
   // via the PROCESSORS map below; today there are none registered (M7.4 will

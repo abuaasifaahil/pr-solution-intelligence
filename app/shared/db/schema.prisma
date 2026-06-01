@@ -1,6 +1,5 @@
 generator client {
   provider      = "prisma-client-js"
-  output        = "../node_modules/.prisma/client"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -93,6 +92,59 @@ enum Intention {
   comment_based
 }
 
+/// Phase 3.5 — chat-level data source selector. `csv_upload` uses the
+/// existing M7.7 CSV path; `opensearch` uses M9.1's OpenSearch client.
+/// The DB column name is `data_source` (see ChatParams.dataSource @map).
+/// We named the Prisma enum `ChatDataSource` to avoid clashing with the
+/// existing `DataSource` model (data_sources table) and the pre-existing
+/// `DataSourceType` enum.
+enum ChatDataSource {
+  csv_upload
+  opensearch
+}
+
+// ─── Phase 3.5 (M9.6c) — composable skills + user agents (ADR-0003 D4) ──
+//
+// `SkillKind` mirrors the six kinds ADR-0002 Part 1 enumerates.
+// `SkillScope` adds the per-user dimension ADR-0003 Decision 4 amends.
+// `TrustLevel` is the verifier signal Phase 6 admin will surface.
+// `AgentKind` mirrors the 4 legacy Phase 1 analysis agents — adding kinds
+// later is a Postgres ENUM-add migration.
+// `AgentScope` separates own/private from workspace-shared (admin-promoted).
+enum SkillKind {
+  analysis_skill
+  source_skill
+  enrichment_skill
+  tool_skill
+  alert_skill
+  external_skill
+}
+
+enum SkillScope {
+  first_party
+  workspace
+  user_private
+  community
+}
+
+enum TrustLevel {
+  first_party
+  verified
+  community
+}
+
+enum AgentKind {
+  pr_impact
+  brand_sentinel
+  crisis_watch
+  competitor_tracker
+}
+
+enum AgentScope {
+  user_private
+  workspace_shared
+}
+
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique @db.VarChar(255)
@@ -116,6 +168,13 @@ model User {
   chatParams     ChatParams[]
   enrichments    Enrichment[]
   enrichmentJobs EnrichmentJob[]
+  // Phase 3.5 (M9.6c) — per-user authoring of agents + composable skills.
+  // `composableSkills` is named to avoid colliding with `userSkills`
+  // (the M5 settings join table) — both fields coexist; the Phase 5.5
+  // skill composer reads `composableSkills` while M5 Settings reads
+  // `userSkills`.
+  userAgents       UserAgent[]
+  composableSkills ComposableSkill[]
 
   @@index([role])
   @@index([isActive])
@@ -157,6 +216,7 @@ model Chat {
   booleanQueries BooleanQuery[]
   enrichments    Enrichment[]
   enrichmentJobs EnrichmentJob[]
+  searchHistory  SearchHistory[]
 
   @@index([userId, status])
   @@index([createdAt])
@@ -337,6 +397,12 @@ model Article {
   publisherDomain String?   @map("publisher_domain") @db.VarChar(255)
   language        String    @default("en") @db.VarChar(10)
   rawData         Json      @default("{}") @map("raw_data")
+  /// Phase 3.5 (M9.5) — the OpenSearch document `_id` for articles fetched
+  /// via SearchAgent. NULL for CSV-uploaded articles. Combined with chatId
+  /// in a UNIQUE partial index so the bulk-insert dedup-on-rerun guarantee
+  /// holds without affecting CSV rows (chat_id, NULL) which Postgres
+  /// considers non-unique by default.
+  openSearchId    String?   @map("open_search_id")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   upload     Upload?     @relation(fields: [uploadId], references: [id], onDelete: SetNull)
@@ -368,9 +434,29 @@ model ChatParams {
   intention      Intention?
   hasUpload      Boolean         @default(false) @map("has_upload")
   uploadId       String?         @unique @map("upload_id") @db.Uuid
-  collectedAt    DateTime?       @map("collected_at") @db.Timestamptz
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  // ─── Phase 3.5 — autonomous intent + OpenSearch source ────────────────
+  /// `csv_upload` (default) routes M9.5 through the existing M7.7 CSV
+  /// pipeline; `opensearch` routes through the new OpenSearch fetch path.
+  /// Nothing reads this column until M9.5 lands.
+  dataSource ChatDataSource @default(csv_upload) @map("data_source")
+
+  /// Empty array means "use OPENSEARCH_DEFAULT_MEDIA_TYPES from env (or all
+  /// 11 types if env is empty)". Non-empty array is the user's explicit
+  /// override. Wire format matches lib/media-types.MediaTypeSchema.options
+  /// exactly. Stored as text[] for portability — a Postgres ENUM array
+  /// would force a schema migration every time we add a new MediaType.
+  mediaTypes String[] @default([]) @map("media_types")
+
+  /// M9.4 — one-shot idempotency flag for the IntentExtractor hook.
+  /// Set when the orchestrator runs `extractIntent` against the user's
+  /// first message (or when M9.7's manual re-trigger endpoint runs it).
+  /// Re-opening the chat after a disconnect does NOT re-run extraction.
+  intentExtractedAt DateTime? @map("intent_extracted_at") @db.Timestamptz
+
+  collectedAt DateTime? @map("collected_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   chat           Chat           @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -517,4 +603,84 @@ model ReachCache {
 
   @@index([fetchedAt])
   @@map("reach_cache")
+}
+
+// ─── Phase 3.5 (M9.5) — SearchAgent memory ────────────────────────────────
+
+/// Per-chat OpenSearch fetch outcomes. Written every time SearchAgent
+/// completes a search loop (success OR reach-absent pause). Future
+/// invocations can short-circuit when the same `queryHash` re-appears
+/// (deterministic hash of the structured query — see lib/query-hash.ts).
+///
+/// `articleIds` stores the OpenSearch `_id` list (not internal article
+/// UUIDs) so memory survives cache-rebuilds of the local articles table.
+/// `coverageReach` is nullable for runs where presence detection was
+/// skipped (e.g. zero-hits result).
+model SearchHistory {
+  id             String   @id @default(uuid()) @db.Uuid
+  chatId         String   @map("chat_id") @db.Uuid
+  queryHash      String   @map("query_hash") @db.VarChar(64)
+  articleIds     String[] @map("article_ids")
+  totalHits      Int      @map("total_hits")
+  indicesQueried String[] @map("indices_queried")
+  coverageReach  Float?   @map("coverage_reach")
+  executedAt     DateTime @default(now()) @map("executed_at") @db.Timestamptz(6)
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, queryHash])
+  @@index([chatId, executedAt(sort: Desc)])
+  @@map("search_history")
+}
+
+// ─── Phase 3.5 (M9.6c) — composable skills + user agents ─────────────────
+//
+// ADR-0003 Decision 4 amends ADR-0002: skills become per-user authorable
+// while the existing M5 `Skill` / `UserSkill` join (capability flags
+// like `sentiment_analysis`) keeps powering /api/v1/settings/skills.
+//
+// To avoid colliding with the live M5 table name `skills`, this new
+// table is mapped to `composable_skills` in Postgres. The Prisma model
+// name `ComposableSkill` makes the distinction explicit at the type
+// level. A future ADR or Phase 5.5 milestone can resolve the rename
+// once M5's table can be retired.
+//
+// `workspace_id` is intentionally a plain nullable UUID — the
+// `workspaces` table doesn't exist yet (Phase 6). Phase 6 will add the
+// FK once the parent table lands.
+model ComposableSkill {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String
+  version     String     @default("1.0.0")
+  kind        SkillKind
+  manifest    Json
+  scope       SkillScope
+  userId      String?    @map("user_id") @db.Uuid
+  workspaceId String?    @map("workspace_id") @db.Uuid
+  trustLevel  TrustLevel @default(first_party) @map("trust_level")
+  enabled     Boolean    @default(true)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([scope, userId, workspaceId, name, version], map: "composable_skill_unique_per_scope")
+  @@index([scope, enabled], map: "composable_skills_scope_enabled_idx")
+  @@index([userId, enabled], map: "composable_skills_user_id_enabled_idx")
+  @@map("composable_skills")
+}
+
+model UserAgent {
+  id            String     @id @default(uuid()) @db.Uuid
+  userId        String     @map("user_id") @db.Uuid
+  name          String
+  baseAgentKind AgentKind  @map("base_agent_kind")
+  customization Json
+  scope         AgentScope @default(user_private)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("user_agents")
 }

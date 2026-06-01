@@ -1,12 +1,15 @@
-# Phase 5.5 — Dynamic Tool Sandbox (DEFERRED)
+# Phase 5.5 — Skills + Tool Sandbox (DEFERRED · RENAMED 2026-06-01)
 
-**Source:** TBD (no .docx; born of mid-Phase-2 discussion)
+**Source:** TBD (no .docx; born of mid-Phase-2 discussion + 2026-06-01 user feedback)
 **Status:** Not started · scheduled after Phase 5
 **Builds on:** Phase 2's `AgentActionPanel` generic component; Phase 5 Learning Agent
+**Architecture decision:** [ADR-0002 — Skill-first composition](adr/0002-skill-composition.md)
+
+> **2026-06-01 rename + scope expansion.** Originally "Dynamic Tool Sandbox" (wrap Azure Assistants API). After user feedback on multi-source + skill composition, expanded to also ship the skill system (catalog, composer, manifest schema, chat-flow rewrite). The sandbox piece survives; skills sit ON TOP of it. See ADR-0002 for the design rationale and the 10-milestone outline. MCP integration moves to Phase 7 (new).
 
 ## One-line scope
 
-Let an agent generate a tool at runtime, execute it in a sandboxed environment, stream step-by-step progress to the chat, and collapse to the result. Same UX pattern as Phase 2's DataExtractAgent processing panel — just driven by a dynamically-generated step list.
+Let an agent generate a tool at runtime, execute it in a sandboxed environment, stream step-by-step progress to the chat, and collapse to the result. Same UX pattern as Phase 2's DataExtractAgent processing panel — just driven by a dynamically-generated step list. **AND:** ship the skill catalog, composer, and chat-creation flow rewrite per ADR-0002.
 
 ## Implementation decision
 

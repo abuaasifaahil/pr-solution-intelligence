@@ -38,6 +38,19 @@ PR Solutions/
 1. Read `docs/tech-stack.md` before any code change — those decisions apply across phases.
 2. Before working on Phase N, read `docs/phaseN.md`. Do not read other `phaseM.md` files unless a contract crosses phases (the active phase doc calls out crossings).
 3. Spec archive (`Phase N/*.docx`, `*.html`) is reference-only. Never edit. If a digest disagrees with the spec, the spec wins — flag it and update the digest.
+4. **Check `docs/adr/` for cross-phase decisions** before designing anything that touches data-source ingestion, skill composition, or MCP. ADRs are append-only and supersede phase-doc statements.
+
+## Cross-phase architecture decisions (ADRs)
+
+When a decision spans phases, it lives in `docs/adr/` (not in a phase digest):
+
+| # | Title | Status |
+|---|---|---|
+| [0001](adr/0001-data-source-adapter.md) | Data-source adapter pattern + multi-source per chat | Accepted 2026-06-01 |
+| [0002](adr/0002-skill-composition.md) | Skill-first composition (replacing fixed-agent dropdown) | Accepted 2026-06-01 |
+| [0003](adr/0003-chat-entry-composition.md) | 8 chat-entry patterns + agent-as-prober + per-user authoring | Accepted 2026-06-01 |
+
+Adding a new ADR: see `docs/adr/README.md`.
 
 ## Tech stack (frozen)
 

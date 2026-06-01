@@ -34,6 +34,49 @@ const EnvSchema = z.object({
   // Phase 2 — Queue (BullMQ). Reuses existing REDIS_URL; no new connection string.
   QUEUE_CONCURRENCY: z.coerce.number().int().positive().default(2),
   QUEUE_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+
+  // Phase 3.5 — OpenSearch (autonomous article fetching).
+  //
+  // All five connection vars are `.optional()` so the backend boots cleanly
+  // when OpenSearch isn't configured — Phase 1/2/3 paths don't need it.
+  // The DataExtractAgent (M9.5) checks `hasOpenSearchConfig()` and falls
+  // back to CSV upload when missing.
+  OPENSEARCH_URL: z.string().url().optional(),
+  OPENSEARCH_USERNAME: z.string().optional(),
+  OPENSEARCH_PASSWORD: z.string().optional(),
+  // DEPRECATED M9.1.2 — superseded by lib/media-types.ts + indices.ts. Kept for
+  // env-validation backward compat; may be repurposed for per-user cluster
+  // overrides in M9.6.
+  OPENSEARCH_INDEX_NAME: z.string().default('amx-data*'),
+  OPENSEARCH_INDEX_TYPE: z.enum(['daywise', 'monthwise', 'single']).default('daywise'),
+  // Tuning knobs — sensible defaults so devs don't need to set them locally.
+  // OPENSEARCH_TIMEOUT_MS is still used by the Client constructor for non-search
+  // calls (e.g. cluster.health). Per-search timing comes from
+  // OPENSEARCH_REQUEST_TIMEOUT_MS below.
+  OPENSEARCH_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  OPENSEARCH_PAGE_SIZE: z.coerce.number().int().positive().default(500),
+  // Hard cap = OPENSEARCH_PAGE_SIZE × OPENSEARCH_MAX_PAGES articles per chat.
+  // Default 500 × 1 = 500 articles, sized to match enrichment token cap
+  // (MAX_TOKENS_PER_JOB=280_000 ≈ 500 articles × ~500 tokens each + overhead).
+  OPENSEARCH_MAX_PAGES: z.coerce.number().int().positive().default(1),
+  OPENSEARCH_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  // DEPRECATED M9.1.2 — superseded by lib/media-types.ts + indices.ts. Kept for
+  // env-validation backward compat; may be repurposed for per-user cluster
+  // overrides in M9.6.
+  OPENSEARCH_PATTERN_OF_INDEX: z.string().default('YYYY-MM-DD'),
+  OPENSEARCH_FIELDS_FOR_QUERY: z.string().default('title,content,description,summary'),
+
+  // M9.1.2: prod-aligned timing + retry + caching. Defaults mirror AMX
+  // production: 5-min timeout, 5 retries with exponential backoff factor
+  // 2, replica-first preference, query result caching ON.
+  OPENSEARCH_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
+  OPENSEARCH_RETRIES: z.coerce.number().int().positive().default(5),
+  OPENSEARCH_RETRY_BACKOFF_FACTOR: z.coerce.number().positive().default(2),
+  OPENSEARCH_REQUEST_CACHE: z.coerce.boolean().default(true),
+  OPENSEARCH_PREFERENCE: z.string().default('_replica_first'),
+  // CSV of MediaType values (see lib/media-types.ts) applied as the default
+  // when a chat doesn't specify its own. Empty / unset → "all 11 types".
+  OPENSEARCH_DEFAULT_MEDIA_TYPES: z.string().default(''),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -49,4 +92,13 @@ export function loadEnv(): Env {
   }
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * True when OpenSearch is configured well enough to fetch articles
+ * (URL + basic-auth credentials present). Used by DataExtractAgent's
+ * opensearch path (M9.5) and the `/opensearch/probe` endpoint (M9.7).
+ */
+export function hasOpenSearchConfig(env: Env = loadEnv()): boolean {
+  return !!(env.OPENSEARCH_URL && env.OPENSEARCH_USERNAME && env.OPENSEARCH_PASSWORD);
 }

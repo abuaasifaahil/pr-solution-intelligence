@@ -41,6 +41,9 @@ interface ParamsRow {
   intention: string | null;
   hasUpload: boolean;
   uploadId: string | null;
+  // M9.2: Phase 3.5 columns (data_source ENUM + media_types TEXT[]).
+  dataSource: 'csv_upload' | 'opensearch';
+  mediaTypes: string[];
   collectedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -76,6 +79,9 @@ const mockChatParams = {
       intention: null,
       hasUpload: false,
       uploadId: null,
+      // M9.2: defaults mirror prisma/schema.prisma.
+      dataSource: data.dataSource ?? 'csv_upload',
+      mediaTypes: data.mediaTypes ?? [],
       collectedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -320,5 +326,98 @@ describe('chat-params.service', () => {
     );
     const out = await suggestCompetitors(USER_A, 'Acme');
     expect(out.top5).toHaveLength(5);
+  });
+
+  // ─── M9.2 — data_source + media_types ───────────────────────────────
+  it('create — dataSource defaults to "csv_upload" when omitted', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    const out = await getOrCreateParams(USER_A, CHAT_A);
+    expect(out.dataSource).toBe('csv_upload');
+  });
+
+  it('create — dataSource: "opensearch" persists correctly', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    const out = await getOrCreateParams(USER_A, CHAT_A, { dataSource: 'opensearch' });
+    expect(out.dataSource).toBe('opensearch');
+  });
+
+  it('create — mediaTypes defaults to [] when omitted', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    const out = await getOrCreateParams(USER_A, CHAT_A);
+    expect(out.mediaTypes).toEqual([]);
+  });
+
+  it('create — mediaTypes: ["print","x_twitter"] persists correctly', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    const out = await getOrCreateParams(USER_A, CHAT_A, {
+      mediaTypes: ['print', 'x_twitter'],
+    });
+    expect(out.mediaTypes).toEqual(['print', 'x_twitter']);
+  });
+
+  it('create — invalid dataSource value throws ZodError', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    // Cast through unknown to bypass TS — the runtime guard is what we exercise.
+    await expect(
+      getOrCreateParams(USER_A, CHAT_A, {
+        dataSource: 'garbage' as unknown as 'csv_upload' | 'opensearch',
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('create — invalid mediaTypes entry throws ZodError', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    await expect(
+      getOrCreateParams(USER_A, CHAT_A, {
+        mediaTypes: ['garbage_value'] as unknown as never[],
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('patch — changing dataSource from csv_upload to opensearch works', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    await getOrCreateParams(USER_A, CHAT_A);
+    expect(paramsStore[0]!.dataSource).toBe('csv_upload');
+    const out = await patchParams(USER_A, CHAT_A, { dataSource: 'opensearch' });
+    expect(out.params.dataSource).toBe('opensearch');
+    expect(paramsStore[0]!.dataSource).toBe('opensearch');
+  });
+
+  it('patch — mediaTypes: undefined leaves the column untouched', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    await getOrCreateParams(USER_A, CHAT_A, { mediaTypes: ['print'] });
+    expect(paramsStore[0]!.mediaTypes).toEqual(['print']);
+    // Patch something unrelated; mediaTypes column should be preserved.
+    await patchParams(USER_A, CHAT_A, { brand: 'Acme' });
+    expect(paramsStore[0]!.mediaTypes).toEqual(['print']);
+  });
+
+  it('patch — mediaTypes: [] explicitly resets to empty (use platform default)', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    await getOrCreateParams(USER_A, CHAT_A, { mediaTypes: ['print', 'reddit'] });
+    expect(paramsStore[0]!.mediaTypes).toEqual(['print', 'reddit']);
+    const out = await patchParams(USER_A, CHAT_A, { mediaTypes: [] });
+    expect(out.params.mediaTypes).toEqual([]);
+    expect(paramsStore[0]!.mediaTypes).toEqual([]);
+  });
+
+  it('patch — mediaTypes: ["garbage_value"] fails Zod validation', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    await getOrCreateParams(USER_A, CHAT_A);
+    await expect(
+      patchParams(USER_A, CHAT_A, {
+        mediaTypes: ['garbage_value'] as unknown as never[],
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('patch — dataSource: "garbage" fails Zod validation', async () => {
+    chatStore.push({ id: CHAT_A, userId: USER_A });
+    await getOrCreateParams(USER_A, CHAT_A);
+    await expect(
+      patchParams(USER_A, CHAT_A, {
+        dataSource: 'garbage' as unknown as 'csv_upload' | 'opensearch',
+      }),
+    ).rejects.toThrow();
   });
 });

@@ -1,4 +1,5 @@
 import { URL } from 'node:url';
+import { FIELD_ALIASES, type NormalizedFieldKey } from './field-aliases.js';
 
 /**
  * Article normalizer — M7.4.
@@ -11,6 +12,10 @@ import { URL } from 'node:url';
  *
  * No DB, no IO. Every helper is unit-testable in isolation; see
  * `test/lib/article-normalizer.test.ts`.
+ *
+ * M9.2: alias map moved to `lib/field-aliases.ts` (shared with the
+ * OpenSearch path). The CSV path uses the same 8 fields that existed
+ * before (no `publisherDomain` — CSV derives that from URL + source).
  */
 
 /** Canonical Article shape we insert into the DB (excluding system fields). */
@@ -27,16 +32,24 @@ export interface NormalizedArticle {
   rawData: Record<string, unknown>;
 }
 
-/** Configurable column-name aliases. Order matters: first match wins. */
-export const COLUMN_ALIASES = {
-  title: ['title', 'headline', 'subject'],
-  content: ['content', 'body', 'text', 'article'],
-  description: ['description', 'summary', 'snippet', 'abstract'],
-  source: ['source', 'publisher', 'publication', 'outlet'],
-  author: ['author', 'byline', 'writer'],
-  publishedDate: ['published_date', 'publishedAt', 'published', 'date', 'pub_date', 'timestamp'],
-  url: ['url', 'link', 'href', 'permalink'],
-  language: ['language', 'lang', 'locale'],
+/** CSV-relevant subset of the shared FIELD_ALIASES map. The CSV path does
+ *  not consume a `publisherDomain` alias (it derives that from URL/source
+ *  on its own), nor `country` (added in M9.4.5 for the OpenSearch path
+ *  only — CSV currently has no country column), so we project the shared
+ *  map down to the 8 keys the CSV normalizer needs.
+ *
+ *  Kept exported as `COLUMN_ALIASES` for backwards compatibility with
+ *  callers and tests written before M9.2 lifted the map. */
+type CsvAliasKey = Exclude<NormalizedFieldKey, 'publisherDomain' | 'country'>;
+export const COLUMN_ALIASES: Record<CsvAliasKey, readonly string[]> = {
+  title: FIELD_ALIASES.title,
+  content: FIELD_ALIASES.content,
+  description: FIELD_ALIASES.description,
+  source: FIELD_ALIASES.source,
+  author: FIELD_ALIASES.author,
+  publishedDate: FIELD_ALIASES.publishedDate,
+  url: FIELD_ALIASES.url,
+  language: FIELD_ALIASES.language,
 } as const;
 
 /**

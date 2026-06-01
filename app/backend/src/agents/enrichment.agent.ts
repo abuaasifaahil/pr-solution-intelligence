@@ -79,10 +79,13 @@ export interface EnrichmentActResult {
 
 /**
  * Hard cap on per-job token estimates to keep runaway corpora from melting
- * the cost budget. Default per spec § "Open items" is 300_000; override via
- * MAX_TOKENS_PER_JOB env. Enforced in `reason` before any DB / queue writes.
+ * the cost budget. Default 280_000 — sized so ~500 articles × ~500 tokens
+ * each (250K) plus few-shot batch overhead (~30K) fits with margin. Matches
+ * the Phase 3.5 OpenSearch fetch cap (PAGE_SIZE=500 × MAX_PAGES=1 = 500).
+ * Override via MAX_TOKENS_PER_JOB env. Enforced in `reason` before any
+ * DB / queue writes.
  */
-const MAX_TOKENS_PER_JOB = Number(process.env.MAX_TOKENS_PER_JOB ?? 300_000);
+const MAX_TOKENS_PER_JOB = Number(process.env.MAX_TOKENS_PER_JOB ?? 280_000);
 
 export class EnrichmentAgent extends BaseAgent {
   async perceive(input: AgentInput): Promise<PerceivedContext> {
