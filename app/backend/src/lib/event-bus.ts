@@ -7,7 +7,19 @@ export type ChatEventType =
   | 'message:chunk'
   | 'message:new'
   | 'agent:progress'
-  | 'error';
+  | 'error'
+  // Phase 2 — upload pipeline (M7.4) emits these on the chat channel so the
+  // frontend can react when a queued parse-upload job lands or fails.
+  | 'upload:parsed'
+  | 'upload:error'
+  // Phase 2 — conversational flow engine (M7.5) emits this when chat_params
+  // advances through the 9-state machine.
+  | 'flow:state-change'
+  // Phase 2 — DataExtractAgent (M7.7) emits one `processing:step` per step
+  // in its 7-step pipeline, and a final `processing:complete` when the run
+  // finishes successfully.
+  | 'processing:step'
+  | 'processing:complete';
 
 export interface ChatEvent {
   type: ChatEventType;

@@ -31,6 +31,10 @@ vi.mock('../../src/agents/agent-registry.js', async () => {
       listAll: () => [],
       register: vi.fn(),
       clear: vi.fn(),
+      // M7.7 added AgentRegistry.has(type) — bootstrapAgents calls it for
+      // the DataExtractAgent singleton check. Default false so the
+      // bootstrap path tries to register (no-op via the register mock).
+      has: vi.fn().mockReturnValue(false),
     },
   };
 });
