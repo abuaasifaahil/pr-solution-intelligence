@@ -49,6 +49,50 @@ enum LLMProvider {
   perplexity
 }
 
+enum UploadStatus {
+  uploading
+  parsing
+  ready
+  error
+}
+
+enum FlowState {
+  init
+  collect_dates
+  collect_enrichment
+  collect_brand
+  collect_competitors
+  collect_intention
+  generate_query
+  processing
+  complete
+}
+
+enum DateRangeType {
+  weekly
+  ten_days
+  twenty_days
+  custom
+  auto_detected
+}
+
+enum EnrichmentType {
+  standard
+  reach
+}
+
+enum CompetitorSet {
+  top5
+  top3
+  top2
+  custom
+}
+
+enum Intention {
+  intention_based
+  comment_based
+}
+
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique @db.VarChar(255)
@@ -67,6 +111,9 @@ model User {
   mcpConnections MCPConnection[]
   llmConfigs     LLMConfig[]
   userSkills     UserSkill[]
+  uploads        Upload[]
+  articles       Article[]
+  chatParams     ChatParams[]
 
   @@index([role])
   @@index([isActive])
@@ -100,8 +147,12 @@ model Chat {
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       Message[]
+  uploads        Upload[]
+  articles       Article[]
+  chatParams     ChatParams?
+  booleanQueries BooleanQuery[]
 
   @@index([userId, status])
   @@index([createdAt])
@@ -233,4 +284,111 @@ model UserSkill {
 
   @@unique([userId, skillId])
   @@map("user_skills")
+}
+
+// ─── Phase 2: Data Pipeline ───────────────────────────────────────────────
+
+model Upload {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  chatId         String       @map("chat_id") @db.Uuid
+  filename       String       @db.VarChar(255)
+  mimeType       String       @map("mime_type") @db.VarChar(50)
+  filePath       String       @map("file_path") @db.VarChar(500)
+  sizeBytes      BigInt       @map("size_bytes")
+  rowCount       Int?         @map("row_count")
+  columnCount    Int?         @map("column_count")
+  schemaDetected Json         @default("[]") @map("schema_detected")
+  dateColumn     String?      @map("date_column") @db.VarChar(100)
+  dateRangeStart DateTime?    @map("date_range_start") @db.Date
+  dateRangeEnd   DateTime?    @map("date_range_end") @db.Date
+  status         UploadStatus @default(uploading)
+  errorMessage   String?      @map("error_message")
+  parsedAt       DateTime?    @map("parsed_at") @db.Timestamptz
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat       Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  articles   Article[]
+  chatParams ChatParams? @relation("ChatParamsUpload")
+
+  @@index([userId, chatId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("uploads")
+}
+
+model Article {
+  id              String    @id @default(uuid()) @db.Uuid
+  uploadId        String?   @map("upload_id") @db.Uuid
+  chatId          String    @map("chat_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  title           String
+  content         String?
+  description     String?
+  source          String?   @db.VarChar(255)
+  author          String?   @db.VarChar(255)
+  publishedDate   DateTime? @map("published_date") @db.Date
+  url             String?
+  publisherDomain String?   @map("publisher_domain") @db.VarChar(255)
+  language        String    @default("en") @db.VarChar(10)
+  rawData         Json      @default("{}") @map("raw_data")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  upload Upload? @relation(fields: [uploadId], references: [id], onDelete: SetNull)
+  chat   Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([userId])
+  @@index([uploadId])
+  @@index([publishedDate])
+  @@index([publisherDomain])
+  @@map("articles")
+}
+
+model ChatParams {
+  id             String          @id @default(uuid()) @db.Uuid
+  chatId         String          @unique @map("chat_id") @db.Uuid
+  userId         String          @map("user_id") @db.Uuid
+  flowState      FlowState       @default(init) @map("flow_state")
+  dateRangeType  DateRangeType?  @map("date_range_type")
+  dateStart      DateTime?       @map("date_start") @db.Date
+  dateEnd        DateTime?       @map("date_end") @db.Date
+  enrichmentType EnrichmentType? @map("enrichment_type")
+  reachThreshold Int?            @map("reach_threshold")
+  brand          String?         @db.VarChar(255)
+  competitors    Json            @default("[]")
+  competitorSet  CompetitorSet?  @map("competitor_set")
+  intention      Intention?
+  hasUpload      Boolean         @default(false) @map("has_upload")
+  uploadId       String?         @unique @map("upload_id") @db.Uuid
+  collectedAt    DateTime?       @map("collected_at") @db.Timestamptz
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  chat           Chat           @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  upload         Upload?        @relation("ChatParamsUpload", fields: [uploadId], references: [id], onDelete: SetNull)
+  booleanQueries BooleanQuery[]
+
+  @@map("chat_params")
+}
+
+model BooleanQuery {
+  id              String    @id @default(uuid()) @db.Uuid
+  chatId          String    @map("chat_id") @db.Uuid
+  chatParamsId    String    @map("chat_params_id") @db.Uuid
+  queryText       String    @map("query_text")
+  queryStructured Json      @map("query_structured")
+  version         Int       @default(1)
+  isConfirmed     Boolean   @default(false) @map("is_confirmed")
+  confirmedAt     DateTime? @map("confirmed_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  chat       Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatParams ChatParams @relation(fields: [chatParamsId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@map("boolean_queries")
 }
