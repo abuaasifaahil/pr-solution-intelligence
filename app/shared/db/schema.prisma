@@ -1,6 +1,5 @@
 generator client {
   provider      = "prisma-client-js"
-  output        = "../node_modules/.prisma/client"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -91,6 +90,17 @@ enum CompetitorSet {
 enum Intention {
   intention_based
   comment_based
+}
+
+/// Phase 3.5 — chat-level data source selector. `csv_upload` uses the
+/// existing M7.7 CSV path; `opensearch` uses M9.1's OpenSearch client.
+/// The DB column name is `data_source` (see ChatParams.dataSource @map).
+/// We named the Prisma enum `ChatDataSource` to avoid clashing with the
+/// existing `DataSource` model (data_sources table) and the pre-existing
+/// `DataSourceType` enum.
+enum ChatDataSource {
+  csv_upload
+  opensearch
 }
 
 model User {
@@ -368,9 +378,23 @@ model ChatParams {
   intention      Intention?
   hasUpload      Boolean         @default(false) @map("has_upload")
   uploadId       String?         @unique @map("upload_id") @db.Uuid
-  collectedAt    DateTime?       @map("collected_at") @db.Timestamptz
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  // ─── Phase 3.5 — autonomous intent + OpenSearch source ────────────────
+  /// `csv_upload` (default) routes M9.5 through the existing M7.7 CSV
+  /// pipeline; `opensearch` routes through the new OpenSearch fetch path.
+  /// Nothing reads this column until M9.5 lands.
+  dataSource ChatDataSource @default(csv_upload) @map("data_source")
+
+  /// Empty array means "use OPENSEARCH_DEFAULT_MEDIA_TYPES from env (or all
+  /// 11 types if env is empty)". Non-empty array is the user's explicit
+  /// override. Wire format matches lib/media-types.MediaTypeSchema.options
+  /// exactly. Stored as text[] for portability — a Postgres ENUM array
+  /// would force a schema migration every time we add a new MediaType.
+  mediaTypes String[] @default([]) @map("media_types")
+
+  collectedAt DateTime? @map("collected_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   chat           Chat           @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)

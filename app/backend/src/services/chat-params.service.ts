@@ -10,28 +10,70 @@
  *
  * @file services/chat-params.service.ts
  */
+import { z } from 'zod';
 import { withUser } from '../lib/prisma-rls.js';
 import { getNextFlowState, getPromptForState, type ChatParamsSnapshot } from '../agents/flow-engine.js';
 import { publishChatEvent } from '../lib/event-bus.js';
 import { chatComplete } from '../lib/llm.js';
+import { MediaTypeSchema, type MediaType } from '../lib/media-types.js';
 import type { Prisma } from '@prsi/shared/db';
+
+/**
+ * M9.2 — Zod validator for the `data_source` ENUM. Mirrors the
+ * `ChatDataSource` enum in prisma/schema.prisma. Kept in this file rather
+ * than a shared module because no other surface validates this value yet.
+ */
+export const DataSourceSchema = z.enum(['csv_upload', 'opensearch']);
+export type DataSource = z.infer<typeof DataSourceSchema>;
+
+/**
+ * M9.2 — Zod validator for `media_types`. Derived from
+ * `MediaTypeSchema.options` so a future MediaType added in lib/media-types
+ * automatically flows here. NEVER redefine the literal list in this file.
+ */
+export const MediaTypesSchema = z.array(MediaTypeSchema);
 
 function toJson(v: unknown): Prisma.InputJsonValue {
   return v as unknown as Prisma.InputJsonValue;
 }
 
+/** Optional create-time overrides for the new Phase 3.5 columns. Both are
+ *  validated via Zod; invalid values throw a ZodError. Unspecified fields
+ *  fall back to the Prisma schema defaults (`csv_upload` / `[]`). */
+export interface CreateOptions {
+  dataSource?: DataSource;
+  mediaTypes?: MediaType[];
+}
+
 /** Fetch (or lazily create) the chat_params row for a chat owned by userId.
- *  1:1 with chats — UNIQUE(chat_id). */
-export async function getOrCreateParams(userId: string, chatId: string) {
+ *  1:1 with chats — UNIQUE(chat_id).
+ *
+ *  M9.2: callers can optionally seed `dataSource` and/or `mediaTypes` on
+ *  the first create. Re-calls on an existing row ignore the options (use
+ *  patchParams to update them). */
+export async function getOrCreateParams(
+  userId: string,
+  chatId: string,
+  opts: CreateOptions = {},
+) {
   return withUser(userId, async (tx) => {
     let row = await tx.chatParams.findUnique({ where: { chatId } });
     if (!row) {
       // Verify chat ownership before creating.
       const chat = await tx.chat.findFirst({ where: { id: chatId } });
       if (!chat) throw new Error('Chat not found');
-      row = await tx.chatParams.create({
-        data: { chatId, userId, flowState: 'init' },
-      });
+      const createData: Prisma.ChatParamsUncheckedCreateInput = {
+        chatId,
+        userId,
+        flowState: 'init',
+      };
+      if (opts.dataSource !== undefined) {
+        createData.dataSource = DataSourceSchema.parse(opts.dataSource);
+      }
+      if (opts.mediaTypes !== undefined) {
+        createData.mediaTypes = MediaTypesSchema.parse(opts.mediaTypes);
+      }
+      row = await tx.chatParams.create({ data: createData });
     }
     return row;
   });
@@ -49,6 +91,12 @@ export interface PatchInput {
   intention?: 'intention_based' | 'comment_based';
   hasUpload?: boolean;
   uploadId?: string | null;
+  // ── Phase 3.5 (M9.2) ──────────────────────────────────────────────────
+  /** `csv_upload` (default) or `opensearch`. Read by M9.5 DataExtractAgent. */
+  dataSource?: DataSource;
+  /** Empty array == "use platform default media types"; non-empty == user
+   *  override. `undefined` leaves the existing column untouched. */
+  mediaTypes?: MediaType[];
 }
 
 /** Partial update of chat_params + automatic flow-state advance.
@@ -82,6 +130,17 @@ export async function patchParams(
       data.upload = patch.uploadId === null
         ? { disconnect: true }
         : { connect: { id: patch.uploadId } };
+    }
+    // ── Phase 3.5 (M9.2): data_source ENUM + media_types[] ──────────────
+    // Both fields are independent of the flow-engine; we just persist the
+    // value (validated by Zod at the route layer). `mediaTypes: []` is a
+    // deliberate "reset to platform default" sentinel and IS persisted;
+    // `undefined` leaves the column untouched (existing semantics).
+    if (patch.dataSource !== undefined) {
+      data.dataSource = DataSourceSchema.parse(patch.dataSource);
+    }
+    if (patch.mediaTypes !== undefined) {
+      data.mediaTypes = MediaTypesSchema.parse(patch.mediaTypes);
     }
 
     const updated = await tx.chatParams.update({ where: { chatId }, data });

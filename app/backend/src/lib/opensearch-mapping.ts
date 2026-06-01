@@ -16,6 +16,7 @@
  * @file lib/opensearch-mapping.ts
  */
 import type { Prisma } from '@prsi/shared/db';
+import { FIELD_ALIASES } from './field-aliases.js';
 
 /** Canonical Article fields we extract from each hit (excluding system cols). */
 export interface NormalizedArticleFields {
@@ -34,21 +35,11 @@ export interface NormalizedArticleFields {
  * Per-field alias map. First match wins. Lookup is case-insensitive — the
  * cluster's actual key may be `Headline` or `HEADLINE`.
  *
- * Note: kept in sync with `article-normalizer.COLUMN_ALIASES` so the two
- * data-source paths normalize the same way. Additionally has
- * `publisherDomain` (CSV path computes it from URL).
+ * M9.2: backed by `lib/field-aliases.FIELD_ALIASES` — the single source of
+ * truth shared with the CSV path. `pubDate` is included for AMX UAT
+ * cluster compatibility (the DSL builder uses that exact key).
  */
-const ALIASES: Record<keyof NormalizedArticleFields, readonly string[]> = {
-  title:           ['title', 'headline', 'subject'],
-  content:         ['content', 'body', 'text', 'article'],
-  description:     ['description', 'summary', 'snippet', 'abstract'],
-  source:          ['source', 'publisher', 'publication', 'outlet'],
-  author:          ['author', 'byline', 'writer'],
-  publishedDate:   ['published_date', 'publishedAt', 'published', 'date', 'pub_date', 'timestamp'],
-  url:             ['url', 'link', 'href', 'permalink'],
-  publisherDomain: ['publisher_domain', 'domain', 'host'],
-  language:        ['language', 'lang', 'locale'],
-};
+const ALIASES: Record<keyof NormalizedArticleFields, readonly string[]> = FIELD_ALIASES;
 
 /**
  * Find the first alias present in `source`. Case-insensitive. Returns null
