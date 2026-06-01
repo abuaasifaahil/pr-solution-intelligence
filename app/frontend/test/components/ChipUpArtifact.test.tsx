@@ -157,4 +157,27 @@ describe('ChipUpArtifact', () => {
       expect(alert.textContent).toContain('network down');
     });
   });
+
+  it('mounts already-expanded when window.location.hash matches artifactId (M8.10 deep-link)', async () => {
+    // Simulate landing on a share link: …/chat/<id>#artifact=<artifactId>
+    const originalHash = window.location.hash;
+    window.location.hash = '#artifact=test-artifact-id';
+    try {
+      getEnrichJson.mockResolvedValue({ dashboard: makeDashboard(), cached: false });
+      render(
+        <ChipUpArtifact
+          chatId="c1"
+          artifactId="test-artifact-id"
+          articleCount={1}
+        />,
+      );
+      // Should NOT be collapsed; the expanded view is mounted directly.
+      expect(screen.queryByTestId('chip-up-artifact')).toBeNull();
+      expect(screen.getByTestId('chip-up-expanded')).toBeTruthy();
+      // And the lazy load fires immediately on mount.
+      await waitFor(() => expect(getEnrichJson).toHaveBeenCalledWith('c1'));
+    } finally {
+      window.location.hash = originalHash;
+    }
+  });
 });

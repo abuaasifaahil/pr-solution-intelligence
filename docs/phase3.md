@@ -1,7 +1,7 @@
 # Phase 3 — Enrichment Engine
 
 **Source:** `Phase 3/Phase3_Technical_Specification.docx` (digested 2026-05-30)
-**Status:** Spec digested · milestone plan pending user approval
+**Status:** SHIPPED (M8.1 → M8.10) · all 4 tables, 9 endpoints, 9 WS events, 2 new agents live
 **Builds on:** [phase1.md](phase1.md) + [phase2.md](phase2.md)
 
 > Read this file before any Phase 3 work. Phase 3 contracts become immutable once shipped — Phase 4 dashboards consume them directly.
@@ -193,17 +193,17 @@ Immutable once Phase 3 ships:
 | SimilarWeb domain coverage | 95%+ |
 | End-to-end enrichment time | <30s for 2,847 articles |
 
-## Open items — resolve before milestone start
+## Open items — all resolved
 
 | Item | Resolution |
 |---|---|
-| **LLM default model** | Azure OpenAI GPT-4.1 (already configured). Claude is `llm_configs` config flip, not a code change. |
-| **SimilarWeb API key location** | Per-user via M5 `data_sources` (sourceType=`custom`). Falls back to env if no per-user config. |
-| **Cost budget per chat** | `MAX_TOKENS_PER_JOB=300_000` env var. Job rejected with friendly error if estimate exceeds. |
-| **Reach cache RLS exemption** | Global (no RLS) — domain-level public data. Documented divergence. |
-| **Dashboard JSON artifact storage** | Inline in `enrichment_jobs.dashboard_json` JSONB column. Simple; no extra S3 storage. |
-| **Failed-row policy** | Retry whole batch (2 retries max) → mark `failed` → continue other batches → job ends `partial`. |
-| **Concurrency on Render free** | Start with 3; configurable via `ENRICHMENT_CONCURRENCY` env. |
+| **LLM default model** | DONE — Azure OpenAI GPT-4.1 via `LLMGateway` (M8.2). Claude / Ollama / Perplexity placeholders warn + fall back to the default provider; future flip is `llm_configs` only. |
+| **SimilarWeb API key location** | DONE — per-user via M5 `data_sources` (sourceType=`custom`, `displayName` contains `'SimilarWeb'`); env fallback for shared dev. Wired in M8.6. |
+| **Cost budget per chat** | DONE — `MAX_TOKENS_PER_JOB=300_000` env var enforced in `EnrichmentAgent.reason()` (M8.4). Estimate includes few-shot overhead × batch count. |
+| **Reach cache RLS exemption** | DONE — `reach_cache` table is global (no RLS); documented in M8.1 migration + reach service. |
+| **Dashboard JSON artifact storage** | DONE — inline `enrichment_jobs.dashboardJson` JSONB column; persisted on first `GET /enrich/json` read (M8.7). Second read returns cached. |
+| **Failed-row policy** | DONE — whole-batch retry, max 2 retries, then mark `failed`; job ends `partial` with other batches' results (M8.5). |
+| **Concurrency on Render free** | DONE — `ENRICHMENT_CONCURRENCY=3` default, configurable via env (M8.5). |
 
 ## Gotchas / non-obvious
 
@@ -234,6 +234,18 @@ Immutable once Phase 3 ships:
 
 Estimate: ~3-4 working days subagent-driven.
 
-## Shipped milestones
+## Shipped milestones (M8.1 → M8.10)
 
-(M8.1 — TBD)
+| # | sha | Title |
+|---|---|---|
+| M8.1  | 660d82e | DB foundation (4 tables + RLS + types + GIN indexes) |
+| M8.2  | f384eeb | LLMGateway multi-model (tiktoken + provider abstraction + Azure OpenAI) |
+| M8.3  | f0f0763 | Enrichment prompt + Zod schemas (6 dimensions) |
+| M8.4  | 4d0872f | EnrichmentAgent lifecycle + Redis pub/sub bridge |
+| M8.5  | ffe0fe1 | EnrichBatchWorker (BullMQ; concurrency 3; 5 WS events) |
+| M8.6  | 47c62b6 | SimilarWebAgent + reach_cache (global) + reach-fetch worker |
+| M8.7  | 669a332 | 9 REST endpoints + dashboard JSON aggregation |
+| M8.8  | 59f4d56 | Frontend EnrichmentProgressCard + BatchGrid + ReachAgentCard |
+| M8.9  | 63b404f | Frontend ChipUp artifact (collapsed/expanded/fullscreen) |
+| M8.10 | (this) | Tests + Playwright e2e + docs (Phase 3 SHIPPED) |
+

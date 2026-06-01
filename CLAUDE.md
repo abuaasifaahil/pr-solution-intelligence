@@ -30,18 +30,18 @@ Phase specs are large. Do not load them all into context. Follow this order:
 
 ## Current state
 
-- **Active phase:** Phase 1 ✓ SHIPPED · Phase 2 ✓ SHIPPED
-- **Active milestone:** Phase 3 kickoff pending user approval
-- **Completed milestones:** M1, M2, M3, M4, M5, M6 (Phase 1) · M7.1–M7.10 (Phase 2)
-- **Remaining:** Phase 3 (PR enrichment), Phase 4 (dashboards), Phase 5 (memory + learning + intelligence), Phase 5.5 (dynamic tool sandbox), Phase 6 (admin UI)
-- See `docs/phase1.md` and `docs/phase2.md` for shipped contracts.
+- **Active phase:** Phase 1 ✓ SHIPPED · Phase 2 ✓ SHIPPED · Phase 3 ✓ SHIPPED
+- **Active milestone:** Phase 4 kickoff pending user approval
+- **Completed milestones:** M1–M6 (Phase 1) · M7.1–M7.10 (Phase 2) · M8.1–M8.10 (Phase 3)
+- **Remaining:** Phase 4 (dashboards), Phase 5 (memory + learning), Phase 5.5 (dynamic tool sandbox), Phase 6 (admin UI + dark mode)
+- See `docs/phase1.md`, `docs/phase2.md`, `docs/phase3.md` for shipped contracts.
 
-### Surface area after Phase 2
+### Surface area after Phase 3
 
-- **REST endpoints:** 33 (22 from Phase 1 + 11 new)
-- **DB tables:** 14 (10 from Phase 1 + 4 new — `uploads`, `articles`, `chat_params`, `boolean_queries`)
-- **WS events:** 12 (6 from Phase 1 + 6 new — `upload:parsed|error`, `flow:state-change`, `processing:step|complete`)
-- **Agents:** 2 (Orchestrator + DataExtractAgent)
+- **REST endpoints:** 42 (22 from Phase 1 + 11 from Phase 2 + 9 from Phase 3)
+- **DB tables:** 18 (10 from Phase 1 + 4 from Phase 2 + 4 from Phase 3 — `enrichments`, `enrichment_jobs`, `enrichment_batches`, `reach_cache`)
+- **WS events:** 21 (6 from Phase 1 + 6 from Phase 2 + 9 from Phase 3 — `enrichment:start|batch-start|batch-complete|batch-error|progress|reach-start|reach-complete|complete|json-ready`)
+- **Agents:** 4 (Orchestrator + DataExtractAgent + EnrichmentAgent + SimilarWebAgent)
 
 ### Live deploy URLs
 

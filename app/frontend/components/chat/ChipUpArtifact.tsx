@@ -38,7 +38,15 @@ export function ChipUpArtifact({
   artifactId,
   articleCount,
 }: Props): JSX.Element {
-  const [mode, setMode] = useState<Mode>('collapsed');
+  // M8.10 — deep-link auto-expand. When a recipient opens a share link
+  // (`…/chat/<id>#artifact=<artifactId>`), the chip should mount already
+  // expanded. Hash is read ONCE on mount; we don't reactivity-track later
+  // hash changes — Phase 3 doesn't need that yet.
+  const [mode, setMode] = useState<Mode>(() => {
+    if (typeof window === 'undefined') return 'collapsed';
+    const match = window.location.hash.match(/^#artifact=([^&]+)/);
+    return match && match[1] === artifactId ? 'expanded' : 'collapsed';
+  });
   const [data, setData] = useState<DashboardJson | null>(null);
   const [error, setError] = useState<string | null>(null);
 
