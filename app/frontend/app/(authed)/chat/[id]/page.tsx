@@ -1,13 +1,15 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Topbar } from '../../../../components/layout/Topbar';
 import { MessageThread } from '../../../../components/chat/MessageThread';
 import { ChatInput } from '../../../../components/chat/ChatInput';
 import { FlowDotIndicator } from '../../../../components/chat/FlowDotIndicator';
+import { ProbingResultCard } from '../../../../components/chat/ProbingResultCard';
 import { useAuthStore } from '../../../../lib/auth-store';
 import { useChatSession } from '../../../../hooks/useChatSession';
 import { useEnrichmentSession } from '../../../../hooks/useEnrichmentSession';
 import { ChatStream } from '../../../../lib/chat-stream';
+import { readPendingFirstMessage } from '../../../../components/home/ChatCreationForm';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -43,6 +45,38 @@ export default function ChatPage({ params }: PageProps) {
   const enrichment = useEnrichmentSession(id, enrichStream, {
     enabled: session.flowState === 'complete',
   });
+
+  // ── M9.8 — ProbingResultCard render trigger.
+  // The card shows when the backend signals via `intent:extracted` (M9.4)
+  // or `reach:absent` (M9.5.5). Both events are "go fetch" signals — the
+  // card itself does the GET /chats/:id/probe call to read the canonical
+  // ProbingResult. We just toggle `showProbe` here so the card mounts;
+  // the card is unmounted when the user clicks "Looks good" or dismisses.
+  const [showProbe, setShowProbe] = useState(false);
+  useEffect(() => {
+    if (!enrichStream) return;
+    enrichStream.onIntentExtracted(() => setShowProbe(true));
+    enrichStream.onReachAbsent(() => setShowProbe(true));
+    enrichStream.onReachResolved(() => setShowProbe(false));
+  }, [enrichStream]);
+
+  // ── M9.8 — Send the pending first-message stashed by ChatCreationForm
+  // on the home page. sessionStorage carries it across the route change;
+  // we send it ONCE per chat and clear the key. Guarded by a ref so
+  // React StrictMode's double-mount in dev doesn't double-send.
+  const pendingMessageSentRef = useRef(false);
+  useEffect(() => {
+    if (pendingMessageSentRef.current) return;
+    if (!session.chat) return;
+    const pending = readPendingFirstMessage(id);
+    if (pending && pending.length > 0) {
+      pendingMessageSentRef.current = true;
+      void session.send(pending);
+    }
+    // We only want this to run when the chat detail lands (so RLS/load
+    // is past) — depending on session.chat?.id is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.chat?.id]);
 
   // Pre-compute the date-range payload so the per-preset handler stays
   // small. Backend accepts ISO strings — see lib/chat-params.ts.
@@ -129,6 +163,15 @@ export default function ChatPage({ params }: PageProps) {
           // ── Phase 3 (M8.8) — enrichment progress card ───────────────
           enrichment={enrichment}
         />
+        {showProbe && (
+          <div className="px-5 pb-3" data-testid="probing-result-card-host">
+            <ProbingResultCard
+              chatId={id}
+              onDone={() => setShowProbe(false)}
+              onDismiss={() => setShowProbe(false)}
+            />
+          </div>
+        )}
         <ChatInput
           onSend={(text) => session.send(text)}
           disabled={session.busy}

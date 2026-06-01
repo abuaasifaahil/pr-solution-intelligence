@@ -121,6 +121,39 @@ export interface EnrichmentJsonReadyPayload {
   articleCount: number;
 }
 
+// ── Phase 3.5 (M9.4 / M9.5.5) — intent + reach probe payloads ──────────────
+//
+// M9.4 IntentExtractor + M9.5.5 reach-probe both feed the M9.8
+// ProbingResultCard. The extracted intent / reach-absent payload is loose
+// at the WS layer because the card receives the canonical `ProbingResult`
+// via a follow-up `GET /chats/:id/probe` rather than from the WS event
+// itself. The events here are purely signals that "something interesting
+// happened — go fetch".
+
+export interface IntentExtractingPayload {
+  chatId: string;
+}
+
+export interface IntentExtractedPayload {
+  chatId: string;
+  /** Source of the intent — `chat_opening` (first user message) is the
+   *  M9.4 case; `manual` covers wizard-driven re-extractions. */
+  source?: 'chat_opening' | 'manual';
+}
+
+export interface ReachAbsentPayload {
+  chatId: string;
+  /** Detected-field-presence snapshot — opaque to the frontend, used
+   *  only as a signal that the probe should surface. */
+  missing: string[];
+}
+
+export interface ReachResolvedPayload {
+  chatId: string;
+  /** What the user picked — 'enrichment' (no reach fetch) or 'enrichment_plus_reach'. */
+  enrichmentType: 'enrichment' | 'enrichment_plus_reach' | 'standard' | 'reach';
+}
+
 export interface ChatStreamConfig {
   apiUrl: string;          // e.g. http://localhost:3001 or https://prsi-api.onrender.com
   chatId: string;
@@ -148,7 +181,11 @@ type ServerEvent =
   | { type: 'enrichment:reach-start'; payload: EnrichmentReachStartPayload }
   | { type: 'enrichment:reach-complete'; payload: EnrichmentReachCompletePayload }
   | { type: 'enrichment:complete'; payload: EnrichmentCompletePayload }
-  | { type: 'enrichment:json-ready'; payload: EnrichmentJsonReadyPayload };
+  | { type: 'enrichment:json-ready'; payload: EnrichmentJsonReadyPayload }
+  | { type: 'intent:extracting'; payload: IntentExtractingPayload }
+  | { type: 'intent:extracted'; payload: IntentExtractedPayload }
+  | { type: 'reach:absent'; payload: ReachAbsentPayload }
+  | { type: 'reach:resolved'; payload: ReachResolvedPayload };
 
 /**
  * Auto-reconnecting WebSocket client for /ws/chat/:chatId.
@@ -181,6 +218,10 @@ export class ChatStream {
   private enrichmentReachCompleteHandlers: Array<(p: EnrichmentReachCompletePayload) => void> = [];
   private enrichmentCompleteHandlers: Array<(p: EnrichmentCompletePayload) => void> = [];
   private enrichmentJsonReadyHandlers: Array<(p: EnrichmentJsonReadyPayload) => void> = [];
+  private intentExtractingHandlers: Array<(p: IntentExtractingPayload) => void> = [];
+  private intentExtractedHandlers: Array<(p: IntentExtractedPayload) => void> = [];
+  private reachAbsentHandlers: Array<(p: ReachAbsentPayload) => void> = [];
+  private reachResolvedHandlers: Array<(p: ReachResolvedPayload) => void> = [];
 
   constructor(private readonly config: ChatStreamConfig) {}
 
@@ -277,6 +318,20 @@ export class ChatStream {
     this.enrichmentJsonReadyHandlers.push(cb);
   }
 
+  // ── Phase 3.5 (M9.4 / M9.5.5 / M9.8) — intent + reach handlers ───────────
+  onIntentExtracting(cb: (p: IntentExtractingPayload) => void): void {
+    this.intentExtractingHandlers.push(cb);
+  }
+  onIntentExtracted(cb: (p: IntentExtractedPayload) => void): void {
+    this.intentExtractedHandlers.push(cb);
+  }
+  onReachAbsent(cb: (p: ReachAbsentPayload) => void): void {
+    this.reachAbsentHandlers.push(cb);
+  }
+  onReachResolved(cb: (p: ReachResolvedPayload) => void): void {
+    this.reachResolvedHandlers.push(cb);
+  }
+
   private dispatch(evt: ServerEvent): void {
     switch (evt.type) {
       case 'typing:start':
@@ -338,6 +393,18 @@ export class ChatStream {
         return;
       case 'enrichment:json-ready':
         for (const h of this.enrichmentJsonReadyHandlers) h(evt.payload);
+        return;
+      case 'intent:extracting':
+        for (const h of this.intentExtractingHandlers) h(evt.payload);
+        return;
+      case 'intent:extracted':
+        for (const h of this.intentExtractedHandlers) h(evt.payload);
+        return;
+      case 'reach:absent':
+        for (const h of this.reachAbsentHandlers) h(evt.payload);
+        return;
+      case 'reach:resolved':
+        for (const h of this.reachResolvedHandlers) h(evt.payload);
         return;
       case 'agent:progress':
         // Phase 1 / Phase 3 — Orchestrator + Strategy agents emit this. We
