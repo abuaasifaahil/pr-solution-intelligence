@@ -17,9 +17,11 @@ import { booleanQueryRoutes } from './routes/boolean-query.routes.js';
 import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
+import { DataExtractAgent } from './agents/data-extract.agent.js';
 import { AgentRegistry } from './agents/agent-registry.js';
 import { startInlineWorker } from './lib/queue.js';
 import { parseUploadProcessor } from './workers/parse-upload.worker.js';
+import { dataExtractProcessor } from './workers/data-extract.worker.js';
 import { prisma } from '@prsi/shared/db';
 
 declare module 'fastify' {
@@ -39,6 +41,24 @@ async function bootstrapAgents(): Promise<void> {
   const agents = await prisma.agent.findMany({ where: { isActive: true } });
   for (const a of agents) {
     AgentRegistry.register(new OrchestratorAgent(a.id, a.name, a.type));
+  }
+  // Phase 2 — M7.7: register the singleton DataExtractAgent alongside the
+  // per-row Orchestrator agents. One instance serves all chats; per-request
+  // state flows through the lifecycle methods (perceive/reason/plan/act).
+  //
+  // The singleton has no agents-table row. Its `id` is a fixed sentinel UUID
+  // so any agent_logs writes by BaseAgent.logAction either succeed (when the
+  // sentinel row exists) or fail-soft via the try/catch in logAction. We
+  // intentionally do not seed an `agents` row — the singleton is not
+  // user-selectable; routing happens via BullMQ job name.
+  if (!AgentRegistry.has('data_extract')) {
+    AgentRegistry.register(
+      new DataExtractAgent(
+        '00000000-0000-0000-0000-0000000d4ea7', // sentinel UUID (d4ea7 ~= "data extract")
+        'Data Extract Agent',
+        'data_extract',
+      ),
+    );
   }
 }
 
@@ -91,6 +111,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   if (process.env.NODE_ENV !== 'test') {
     const PROCESSORS: Record<string, Processor> = {
       'parse-upload': parseUploadProcessor as Processor,
+      'data-extract': dataExtractProcessor as Processor,
     };
     startInlineWorker(async (job, token) => {
       const processor = PROCESSORS[job.name];

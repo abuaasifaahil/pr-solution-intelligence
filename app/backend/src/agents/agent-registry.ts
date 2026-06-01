@@ -14,6 +14,10 @@ class Registry {
     return this.agents.get(type) ?? null;
   }
 
+  has(type: string): boolean {
+    return this.agents.has(type);
+  }
+
   listAll(): BaseAgent[] {
     return Array.from(this.agents.values());
   }

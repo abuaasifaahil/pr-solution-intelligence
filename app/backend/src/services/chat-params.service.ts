@@ -96,7 +96,14 @@ export async function patchParams(
 
   // Compute next state OUTSIDE the transaction so we know the previous
   // state to emit. Snapshot is built from the updated row.
-  const snapshot = toSnapshot({ ...result, _hasConfirmedQuery: hasConfirmedQuery });
+  // M7.7: `isProcessingComplete` is sourced from `flowState === 'complete'`
+  // — the DataExtractAgent's `handoff` step writes that value once the
+  // 7-step pipeline succeeds. This closes the M7.5 TODO.
+  const snapshot = toSnapshot({
+    ...result,
+    _hasConfirmedQuery: hasConfirmedQuery,
+    _isProcessingComplete: result.flowState === 'complete',
+  });
   const nextState = getNextFlowState(snapshot);
   const prompt = getPromptForState(nextState, snapshot);
 
@@ -131,6 +138,7 @@ function toSnapshot(row: {
   intention: string | null;
   hasUpload: boolean;
   _hasConfirmedQuery?: boolean;
+  _isProcessingComplete?: boolean;
 }): ChatParamsSnapshot {
   return {
     brand: row.brand,
@@ -141,7 +149,7 @@ function toSnapshot(row: {
     intention: row.intention,
     hasUpload: row.hasUpload,
     hasConfirmedQuery: row._hasConfirmedQuery ?? false, // M7.6: from boolean_queries.is_confirmed
-    isProcessingComplete: false, // M7.7 will wire this from DataExtractAgent
+    isProcessingComplete: row._isProcessingComplete ?? false, // M7.7: from flowState === 'complete'
   };
 }
 
