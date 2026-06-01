@@ -112,8 +112,14 @@ export class OpenSearchAdapter implements DataSourceAdapter {
   async *fetch(ctx: FetchContext): AsyncIterable<NormalizedArticleBatch> {
     const t0 = Date.now();
     const env = loadEnv();
-    const maxPages = env.OPENSEARCH_MAX_PAGES;
-    const pageSize = env.OPENSEARCH_PAGE_SIZE;
+    // Sample mode (M9.6b): cap at a SINGLE page of size ≤ sampleLimit.
+    // No search_after iteration; SampleClassifier wants ~25 rows fast.
+    const sampleMode =
+      typeof ctx.sampleLimit === 'number' && ctx.sampleLimit > 0;
+    const maxPages = sampleMode ? 1 : env.OPENSEARCH_MAX_PAGES;
+    const pageSize = sampleMode
+      ? Math.min(env.OPENSEARCH_PAGE_SIZE, ctx.sampleLimit!)
+      : env.OPENSEARCH_PAGE_SIZE;
 
     // resolveIndices accepts `mediaTypes: null` as "use all 11 types".
     // chat_params.mediaTypes==[] is the "no override" sentinel — pass null
@@ -140,6 +146,10 @@ export class OpenSearchAdapter implements DataSourceAdapter {
         if (ctx.signal?.aborted) return;
 
         const dsl = buildOpenSearchDsl(ctx.structured, { searchAfter });
+        // Sample mode: override the DSL size so we send a single small
+        // page instead of OPENSEARCH_PAGE_SIZE. Keeps the DSL builder
+        // pure-of-env while letting the adapter respect ctx.sampleLimit.
+        if (sampleMode) dsl.size = pageSize;
         const outcome = await search({
           indices,
           body: dsl as unknown as Record<string, unknown>,

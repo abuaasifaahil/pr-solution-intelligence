@@ -104,9 +104,17 @@ export class CsvUploadAdapter implements DataSourceAdapter {
    * Yield already-normalized CSV rows from the `articles` table in
    * `CSV_BATCH_SIZE` chunks. Articles are scoped by `(chatId, uploadId)`
    * so a re-run on the same chat sees its own rows.
+   *
+   * `ctx.sampleLimit` (M9.6b) — when set, yields AT MOST `sampleLimit`
+   * articles in a SINGLE batch then returns. Used by SampleClassifier
+   * to pull ~25 rows without a full pagination loop.
    */
   async *fetch(ctx: FetchContext): AsyncIterable<NormalizedArticleBatch> {
     const t0 = Date.now();
+    // Per-call effective batch size. `sampleLimit` caps both the LIMIT
+    // clause and the total — one batch, then stop.
+    const sampleMode = typeof ctx.sampleLimit === 'number' && ctx.sampleLimit > 0;
+    const batchSize = sampleMode ? Math.min(CSV_BATCH_SIZE, ctx.sampleLimit!) : CSV_BATCH_SIZE;
 
     try {
       // Single-pass count for `meta().totalHits` so callers can plan
@@ -128,9 +136,10 @@ export class CsvUploadAdapter implements DataSourceAdapter {
 
       let page = 0;
       let cumulative = 0;
-      const totalPages = Math.ceil(total / CSV_BATCH_SIZE);
+      const effectiveTotal = sampleMode ? Math.min(total, ctx.sampleLimit!) : total;
+      const totalPages = Math.ceil(effectiveTotal / batchSize);
 
-      while (cumulative < total) {
+      while (cumulative < effectiveTotal) {
         if (ctx.signal?.aborted) return;
 
         page += 1;
@@ -142,7 +151,7 @@ export class CsvUploadAdapter implements DataSourceAdapter {
             },
             orderBy: { createdAt: 'asc' },
             skip: cumulative,
-            take: CSV_BATCH_SIZE,
+            take: batchSize,
           }),
         );
 
@@ -173,7 +182,11 @@ export class CsvUploadAdapter implements DataSourceAdapter {
         }));
 
         cumulative += articles.length;
-        const isLastPage = cumulative >= total || page >= totalPages;
+        // In sample mode the effectiveTotal cap is the LIMIT — one batch
+        // satisfies the cap unconditionally. In normal mode we just check
+        // against the real total.
+        const isLastPage =
+          cumulative >= effectiveTotal || page >= totalPages || sampleMode;
 
         yield {
           articles,

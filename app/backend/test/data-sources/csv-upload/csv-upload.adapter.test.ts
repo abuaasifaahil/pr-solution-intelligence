@@ -293,6 +293,43 @@ describe('CsvUploadAdapter — fetch()', () => {
     });
   });
 
+  it('M9.6b — sampleLimit=25 yields a single batch of ≤25 articles then stops', async () => {
+    seedRows(CSV_BATCH_SIZE + 200); // way more than sampleLimit
+    const a = new CsvUploadAdapter({ uploadId: UPLOAD });
+    const batches = (await consume(
+      a.fetch({
+        userId: USER,
+        chatId: CHAT,
+        config: null,
+        structured: STRUCTURED,
+        mediaTypes: [],
+        sampleLimit: 25,
+      }),
+    )) as Array<{
+      articles: unknown[];
+      progress: { isLastPage: boolean; cumulativeArticles: number };
+    }>;
+    expect(batches).toHaveLength(1);
+    expect(batches[0]!.articles).toHaveLength(25);
+    expect(batches[0]!.progress.isLastPage).toBe(true);
+    expect(batches[0]!.progress.cumulativeArticles).toBe(25);
+  });
+
+  it('M9.6b — sampleLimit absent → full fetch behavior unchanged', async () => {
+    seedRows(50);
+    const a = new CsvUploadAdapter({ uploadId: UPLOAD });
+    const batches = (await consume(
+      a.fetch({
+        userId: USER,
+        chatId: CHAT,
+        config: null,
+        structured: STRUCTURED,
+        mediaTypes: [],
+      }),
+    )) as Array<{ articles: unknown[] }>;
+    expect(batches[0]!.articles).toHaveLength(50);
+  });
+
   it('AbortSignal mid-iteration stops further batches', async () => {
     seedRows(CSV_BATCH_SIZE * 3);
     const ctrl = new AbortController();

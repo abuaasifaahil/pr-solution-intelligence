@@ -118,6 +118,12 @@ export interface FetchContext {
   mediaTypes: MediaType[];
   /** Cancellation. Iteration MUST stop when the signal aborts. */
   signal?: AbortSignal;
+  /** M9.6b — when set, the adapter yields AT MOST this many articles in
+   *  ONE batch then stops. Used by SampleClassifier to pull ~25 rows
+   *  without triggering a full fetch / pagination loop. Adapters MUST
+   *  honor this cap (CSV: LIMIT clause; OS: search size capped to
+   *  min(env.OPENSEARCH_PAGE_SIZE, sampleLimit), no second page). */
+  sampleLimit?: number;
 }
 
 export interface FetchProgress {

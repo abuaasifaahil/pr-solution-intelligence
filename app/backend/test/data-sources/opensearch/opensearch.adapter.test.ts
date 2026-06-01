@@ -296,6 +296,58 @@ describe('OpenSearchAdapter — fetch()', () => {
     expect(m.totalHits).toBeNull();
   });
 
+  it('M9.6b — sampleLimit=25 → DSL size capped at 25, single page, no search_after second call', async () => {
+    envMaxPages = 5; // ensure adapter would normally iterate
+    envPageSize = 500;
+    scriptedTotalHits = 1500;
+    // Script multiple pages — adapter should only fetch the first.
+    scriptedPages = [
+      fullPage(25, 'p1'),
+      fullPage(500, 'p2'),
+      fullPage(500, 'p3'),
+    ];
+    const a = new OpenSearchAdapter(VALID_CONFIG);
+    const batches = (await consume(
+      a.fetch({
+        userId: 'u1',
+        chatId: 'c1',
+        config: null,
+        structured: STRUCTURED,
+        mediaTypes: [],
+        sampleLimit: 25,
+      }),
+    )) as Array<{ articles: unknown[]; progress: { isLastPage: boolean } }>;
+    expect(batches).toHaveLength(1);
+    expect(batches[0]!.articles).toHaveLength(25);
+    expect(batches[0]!.progress.isLastPage).toBe(true);
+    // search() called exactly once — no search_after second call.
+    expect(searchMock).toHaveBeenCalledTimes(1);
+    // DSL size capped to min(env.OPENSEARCH_PAGE_SIZE, sampleLimit) = 25.
+    const arg = searchMock.mock.calls[0]![0] as { body: { size: number } };
+    expect(arg.body.size).toBe(25);
+  });
+
+  it('M9.6b — sampleLimit absent → existing pagination behavior unchanged', async () => {
+    envMaxPages = 3;
+    envPageSize = 500;
+    scriptedTotalHits = 1500;
+    scriptedPages = [fullPage(500, 'p1'), fullPage(500, 'p2'), fullPage(500, 'p3')];
+    const a = new OpenSearchAdapter(VALID_CONFIG);
+    await consume(
+      a.fetch({
+        userId: 'u1',
+        chatId: 'c1',
+        config: null,
+        structured: STRUCTURED,
+        mediaTypes: [],
+      }),
+    );
+    expect(searchMock).toHaveBeenCalledTimes(3);
+    // DSL.size stays at env.OPENSEARCH_PAGE_SIZE (500).
+    const arg = searchMock.mock.calls[0]![0] as { body: { size: number } };
+    expect(arg.body.size).toBe(500);
+  });
+
   it('AbortSignal mid-iteration stops further pages', async () => {
     envMaxPages = 5;
     envPageSize = 500;

@@ -4,8 +4,13 @@
  * Mocks `patchParams` so we can assert exactly which fields the service
  * tried to persist, the enrichmentType value translation, and the
  * confidence-threshold filtering. No DB, no LLM.
+ *
+ * M9.6b additions — supplement path tests. Mock `sampleClassifier`,
+ * `createAdapter`, `resolveOpenSearchConfig`, and `withUser` so we can
+ * assert the feature-flagged classifier-supplement integration without
+ * spinning up DB / OS / adapters.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Intent } from '../../src/types/intent.js';
 
 // Typed as (userId, chatId, patch) so call-tuple indexing in assertions
@@ -15,6 +20,80 @@ const patchParamsMock = vi.fn(
 );
 vi.mock('../../src/services/chat-params.service.js', () => ({
   patchParams: patchParamsMock,
+}));
+
+// ─── M9.6b supplement-path mocks ──────────────────────────────────────────
+let chatParamsRow: Record<string, unknown> | null = {
+  brand: null,
+  dateStart: null,
+  dateEnd: null,
+  competitors: [],
+  intention: null,
+  enrichmentType: null,
+  mediaTypes: [],
+  dataSource: 'opensearch',
+  uploadId: null,
+};
+
+vi.mock('../../src/lib/prisma-rls.js', () => ({
+  withUser: vi.fn(async (_uid: string, fn: (tx: unknown) => Promise<unknown>) => {
+    const tx = {
+      chatParams: {
+        findUnique: vi.fn(async () => chatParamsRow),
+      },
+    };
+    return fn(tx);
+  }),
+}));
+
+const classifyAndProbeMock = vi.fn(async () => ({
+  inferred: { brand: 'FreshSip' },
+  confidence: { brand: 0.85 },
+  probes: [
+    {
+      field: 'competitors' as const,
+      question: 'Compare against?',
+      chips: [],
+      allowFreeText: true,
+      rationale: 'stub',
+    },
+  ],
+  rationale: 'stub',
+  perSourceStats: [],
+}));
+vi.mock('../../src/lib/sample-classifier.js', () => ({
+  sampleClassifier: { classifyAndProbe: classifyAndProbeMock },
+}));
+
+const fakeAdapter = {
+  declaredCapabilities: () => ({
+    hasReach: 'usually' as const,
+    hasArticleSentiment: 'usually' as const,
+    hasEntities: 'usually' as const,
+    hasThemes: 'usually' as const,
+    hasEngagement: 'usually' as const,
+    hasCountry: 'usually' as const,
+    hasAuthor: 'usually' as const,
+  }),
+  // eslint-disable-next-line @typescript-eslint/require-await
+  fetch: async function* () {
+    yield { articles: [], progress: { page: 1, cumulativeArticles: 0, isLastPage: true } };
+  },
+};
+const createAdapterMock = vi.fn(() => fakeAdapter);
+vi.mock('../../src/data-sources/registry.js', () => ({
+  createAdapter: createAdapterMock,
+}));
+
+const resolveOpenSearchConfigMock = vi.fn(async () => ({
+  url: 'https://os.example.com',
+  username: 'u',
+  password: 'p',
+  indexName: 'amx*',
+  indexType: 'daywise' as const,
+}));
+vi.mock('../../src/data-sources/opensearch/config-resolver.js', () => ({
+  resolveOpenSearchConfig: resolveOpenSearchConfigMock,
 }));
 
 const { applyIntentToChatParams, markIntentExtracted } = await import(
@@ -202,5 +281,123 @@ describe('intent-application.service', () => {
     expect(patchParamsMock).toHaveBeenCalledTimes(1);
     const [, , patch] = patchParamsMock.mock.calls[0]!;
     expect((patch as { intentExtractedAt?: Date }).intentExtractedAt).toEqual(at);
+  });
+});
+
+describe('M9.6b — sample-classifier supplement (feature-flagged)', () => {
+  beforeEach(() => {
+    patchParamsMock.mockClear();
+    classifyAndProbeMock.mockClear();
+    createAdapterMock.mockClear();
+    resolveOpenSearchConfigMock.mockClear();
+    chatParamsRow = {
+      brand: null,
+      dateStart: null,
+      dateEnd: null,
+      competitors: [],
+      intention: null,
+      enrichmentType: null,
+      mediaTypes: [],
+      dataSource: 'opensearch',
+      uploadId: null,
+    };
+  });
+
+  afterEach(() => {
+    delete process.env.ENABLE_SAMPLE_CLASSIFIER_SUPPLEMENT;
+  });
+
+  function lowConfidenceIntent(): Intent {
+    return {
+      brand: null,
+      dateStart: null,
+      dateEnd: null,
+      competitors: [],
+      intention: null,
+      enrichmentType: null,
+      mediaTypes: [],
+      dataSource: null,
+      confidence: {
+        brand: 0.3,
+        dateRange: 0,
+        competitors: 0,
+        intention: 0,
+        enrichmentType: 0,
+        mediaTypes: 0,
+        dataSource: 0,
+      },
+    };
+  }
+
+  it('flag OFF (default) → classifier is NOT called even when brand confidence is low', async () => {
+    // Explicitly unset just to be sure.
+    delete process.env.ENABLE_SAMPLE_CLASSIFIER_SUPPLEMENT;
+    const out = await applyIntentToChatParams(USER_A, CHAT_A, lowConfidenceIntent());
+    expect(classifyAndProbeMock).not.toHaveBeenCalled();
+    expect(out.supplementedFromSample).toBeUndefined();
+    expect(out.probes).toBeUndefined();
+  });
+
+  it('flag ON + brand confidence 0.3 + source attached → classifier supplements brand', async () => {
+    process.env.ENABLE_SAMPLE_CLASSIFIER_SUPPLEMENT = 'true';
+    const out = await applyIntentToChatParams(USER_A, CHAT_A, lowConfidenceIntent());
+    expect(classifyAndProbeMock).toHaveBeenCalledTimes(1);
+    expect(out.supplementedFromSample).toContain('brand');
+    expect(out.probes).toBeDefined();
+    // patchParams called by the supplement path with brand: 'FreshSip'.
+    const brandWrite = patchParamsMock.mock.calls.find(
+      (c) => (c[2] as { brand?: string }).brand === 'FreshSip',
+    );
+    expect(brandWrite).toBeDefined();
+  });
+
+  it('flag ON + classifier confidence below 0.6 floor → no supplement applied', async () => {
+    process.env.ENABLE_SAMPLE_CLASSIFIER_SUPPLEMENT = 'true';
+    classifyAndProbeMock.mockResolvedValueOnce({
+      inferred: { brand: 'WeakGuess' },
+      confidence: { brand: 0.55 }, // below SUPPLEMENT_INFERRED_CONFIDENCE_FLOOR
+      probes: [],
+      rationale: '',
+      perSourceStats: [],
+    });
+    const out = await applyIntentToChatParams(USER_A, CHAT_A, lowConfidenceIntent());
+    expect(classifyAndProbeMock).toHaveBeenCalled();
+    expect(out.supplementedFromSample).toEqual([]);
+    // No brand write because we declined to apply the weak inference.
+    const brandWrites = patchParamsMock.mock.calls.filter(
+      (c) => (c[2] as { brand?: string }).brand === 'WeakGuess',
+    );
+    expect(brandWrites).toHaveLength(0);
+  });
+
+  it('flag ON + no source attached (csv with no uploadId) → no supplement', async () => {
+    process.env.ENABLE_SAMPLE_CLASSIFIER_SUPPLEMENT = 'true';
+    chatParamsRow = {
+      ...(chatParamsRow ?? {}),
+      dataSource: 'csv_upload',
+      uploadId: null,
+    };
+    const out = await applyIntentToChatParams(USER_A, CHAT_A, lowConfidenceIntent());
+    // Classifier never called because no adapter sample is available.
+    expect(classifyAndProbeMock).not.toHaveBeenCalled();
+    expect(out.supplementedFromSample).toBeUndefined();
+  });
+
+  it('flag ON + high-confidence brand → no supplement (LLM result trusted)', async () => {
+    process.env.ENABLE_SAMPLE_CLASSIFIER_SUPPLEMENT = 'true';
+    const intent = lowConfidenceIntent();
+    intent.brand = 'HighConfBrand';
+    intent.confidence.brand = 0.9;
+    await applyIntentToChatParams(USER_A, CHAT_A, intent);
+    expect(classifyAndProbeMock).not.toHaveBeenCalled();
+  });
+
+  it('flag ON + LLM left brand null AND classifier fails → no error, no supplement', async () => {
+    process.env.ENABLE_SAMPLE_CLASSIFIER_SUPPLEMENT = 'true';
+    classifyAndProbeMock.mockRejectedValueOnce(new Error('boom'));
+    const out = await applyIntentToChatParams(USER_A, CHAT_A, lowConfidenceIntent());
+    // Best-effort — failure is swallowed.
+    expect(out.appliedFields).toEqual([]);
+    expect(out.supplementedFromSample).toBeUndefined();
   });
 });
