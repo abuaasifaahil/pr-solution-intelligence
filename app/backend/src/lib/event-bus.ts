@@ -19,7 +19,34 @@ export type ChatEventType =
   // in its 7-step pipeline, and a final `processing:complete` when the run
   // finishes successfully.
   | 'processing:step'
-  | 'processing:complete';
+  | 'processing:complete'
+  // Phase 3 — EnrichmentAgent (M8.4) announces that batching is planned and
+  // per-batch jobs are about to land. M8.5 adds the per-batch lifecycle
+  // events emitted by the EnrichBatchWorker:
+  //   batch-start    — worker begins processing a batch (LLM call about to fire)
+  //   batch-complete — batch wrote N enrichment rows, captured token usage
+  //   batch-error    — batch threw; payload.retrying flags whether BullMQ
+  //                    will retry (retry_count ≤ MAX_RETRIES) or give up
+  //   progress       — running tally toward the job total, percent included
+  //   complete       — final job-level event after the last batch settles
+  // M8.6 adds the parallel reach pipeline driven by SimilarWebAgent:
+  //   reach-start    — fan-out begins (after DISTINCT publisher_domain query)
+  //   reach-complete — merge into enrichments.reach JSONB done; coverage stats
+  // The reach-* events fire INDEPENDENTLY of `enrichment:complete` (LLM side);
+  // the frontend treats them as two separate signals and waits for both when
+  // enrichmentType=='reach'.
+  // M8.7 adds the terminal `json-ready` event emitted by GET /enrich/json
+  // the first time the dashboard JSON is computed for a chat. Phase 4
+  // listens for this to flip its ChipUp artifact into "ready" state.
+  | 'enrichment:start'
+  | 'enrichment:batch-start'
+  | 'enrichment:batch-complete'
+  | 'enrichment:batch-error'
+  | 'enrichment:progress'
+  | 'enrichment:complete'
+  | 'enrichment:reach-start'
+  | 'enrichment:reach-complete'
+  | 'enrichment:json-ready';
 
 export interface ChatEvent {
   type: ChatEventType;
@@ -48,6 +75,26 @@ export async function publishChatEvent(
     // Pub/sub failure must never break the streaming task.
     // eslint-disable-next-line no-console
     console.error('[event-bus] publish failed', { chatId, type, err });
+  }
+}
+
+/**
+ * Publish to an arbitrary Redis pub/sub channel (not the per-chat one).
+ * Used by the Phase 3 cross-agent bus (e.g. `agent:enrichment:incoming`)
+ * to hand control off between agents that live in the same process but
+ * are decoupled through the message bus. Errors are logged, not thrown —
+ * the publish must never break the publishing agent's lifecycle.
+ */
+export async function publishAgentBus(
+  channel: string,
+  payload: unknown,
+): Promise<void> {
+  const pub = getRedis();
+  try {
+    await pub.publish(channel, JSON.stringify(payload));
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[event-bus] agent-bus publish failed', { channel, err });
   }
 }
 

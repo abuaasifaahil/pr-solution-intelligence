@@ -25,7 +25,7 @@
  * @file agents/data-extract.agent.ts
  */
 import { BaseAgent, type AgentInput } from './base-agent.js';
-import { publishChatEvent } from '../lib/event-bus.js';
+import { publishChatEvent, publishAgentBus } from '../lib/event-bus.js';
 import { withUser } from '../lib/prisma-rls.js';
 
 interface DataExtractInput extends AgentInput {
@@ -191,6 +191,17 @@ export class DataExtractAgent extends BaseAgent {
       totalArticles: ctx.articleCount,
       domains: domainsExtracted,
       totalTime: totalMs,
+    });
+
+    // Phase 3 handoff. Done AFTER the 7-step pipeline has fully committed
+    // (the handoff step already flipped chat_params.flowState to 'complete').
+    // Publishing on the cross-agent bus is the M7.7 → M8.4 contract: the
+    // EnrichmentAgent subscriber picks this up and starts batch sizing.
+    // Empty articleIds = enrich all articles for the chat.
+    await publishAgentBus('agent:enrichment:incoming', {
+      chatId: ctx.chatId,
+      userId: ctx.userId,
+      articleIds: [],
     });
 
     return {

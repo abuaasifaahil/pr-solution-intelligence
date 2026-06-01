@@ -1,10 +1,15 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { Topbar } from '../../../../components/layout/Topbar';
 import { MessageThread } from '../../../../components/chat/MessageThread';
 import { ChatInput } from '../../../../components/chat/ChatInput';
 import { FlowDotIndicator } from '../../../../components/chat/FlowDotIndicator';
 import { useAuthStore } from '../../../../lib/auth-store';
 import { useChatSession } from '../../../../hooks/useChatSession';
+import { useEnrichmentSession } from '../../../../hooks/useEnrichmentSession';
+import { ChatStream } from '../../../../lib/chat-stream';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 // Next 14 passes `params` as a plain object. (Next 15 changed it to a Promise
 // that needs `use()` — DO NOT switch to that pattern until the Next 15 upgrade.)
@@ -21,6 +26,23 @@ export default function ChatPage({ params }: PageProps) {
   const { id } = params;
   const accessToken = useAuthStore((s) => s.accessToken);
   const session = useChatSession(id, accessToken);
+
+  // ── Phase 3 (M8.8) — dedicated WS subscription for enrichment events.
+  // useChatSession owns its own ChatStream and doesn't expose it, so we
+  // mount a second subscription here. The backend pub/sub layer multicasts
+  // per-chat, so two listeners is supported by design.
+  const [enrichStream, setEnrichStream] = useState<ChatStream | null>(null);
+  useEffect(() => {
+    if (!accessToken) return;
+    const cs = new ChatStream({ apiUrl: API_URL, chatId: id, accessToken });
+    cs.open();
+    setEnrichStream(cs);
+    return () => { cs.close(); setEnrichStream(null); };
+  }, [id, accessToken]);
+
+  const enrichment = useEnrichmentSession(id, enrichStream, {
+    enabled: session.flowState === 'complete',
+  });
 
   // Pre-compute the date-range payload so the per-preset handler stays
   // small. Backend accepts ISO strings — see lib/chat-params.ts.
@@ -48,6 +70,7 @@ export default function ChatPage({ params }: PageProps) {
           </div>
         )}
         <MessageThread
+          chatId={id}
           messages={session.messages}
           onChipPick={session.pickChip}
           onCustomReply={(text) => void session.send(text)}
@@ -103,6 +126,8 @@ export default function ChatPage({ params }: PageProps) {
           }}
           onQueryEdit={(text) => void session.editQuery(text)}
           onQueryConfirm={() => void session.confirmQuery()}
+          // ── Phase 3 (M8.8) — enrichment progress card ───────────────
+          enrichment={enrichment}
         />
         <ChatInput
           onSend={(text) => session.send(text)}

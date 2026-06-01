@@ -14,14 +14,20 @@ import { skillRoutes } from './routes/skill.routes.js';
 import { uploadRoutes } from './routes/upload.routes.js';
 import { chatParamsRoutes } from './routes/chat-params.routes.js';
 import { booleanQueryRoutes } from './routes/boolean-query.routes.js';
+import { enrichmentRoutes } from './routes/enrichment.routes.js';
 import { wsRoutes } from './routes/ws.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { OrchestratorAgent } from './agents/orchestrator.agent.js';
 import { DataExtractAgent } from './agents/data-extract.agent.js';
+import { EnrichmentAgent } from './agents/enrichment.agent.js';
+import { SimilarWebAgent } from './agents/similarweb.agent.js';
+import { startEnrichmentSubscriber } from './agents/enrichment-subscriber.js';
 import { AgentRegistry } from './agents/agent-registry.js';
 import { startInlineWorker } from './lib/queue.js';
 import { parseUploadProcessor } from './workers/parse-upload.worker.js';
 import { dataExtractProcessor } from './workers/data-extract.worker.js';
+import { enrichBatchProcessor } from './workers/enrich-batch.worker.js';
+import { reachFetchProcessor } from './workers/reach-fetch.worker.js';
 import { prisma } from '@prsi/shared/db';
 
 declare module 'fastify' {
@@ -57,6 +63,33 @@ async function bootstrapAgents(): Promise<void> {
         '00000000-0000-0000-0000-0000000d4ea7', // sentinel UUID (d4ea7 ~= "data extract")
         'Data Extract Agent',
         'data_extract',
+      ),
+    );
+  }
+  // Phase 3 — M8.4: EnrichmentAgent singleton. Same pattern as M7.7's
+  // DataExtractAgent — no agents-table row, sentinel UUID, logAction
+  // overridden to no-op. The cross-agent bus subscriber (started below
+  // after route registration) drives this agent.
+  if (!AgentRegistry.has('enrichment')) {
+    AgentRegistry.register(
+      new EnrichmentAgent(
+        '00000000-0000-0000-0000-0000000e87c1', // sentinel UUID (e87c1 ~= "enrich")
+        'Enrichment Agent',
+        'enrichment',
+      ),
+    );
+  }
+  // Phase 3 — M8.6: SimilarWebAgent singleton. Same pattern as the other
+  // Phase 2/3 singletons — no agents-table row, sentinel UUID, logAction
+  // overridden to no-op. The reach-fetch BullMQ processor drives this
+  // agent; M8.4's EnrichmentAgent fires one `reach-fetch` per job when
+  // enrichmentType==='reach'.
+  if (!AgentRegistry.has('similarweb')) {
+    AgentRegistry.register(
+      new SimilarWebAgent(
+        '00000000-0000-0000-0000-0000005e4cb1', // sentinel UUID (5e4cb1 ~= "search")
+        'SimilarWeb Agent',
+        'similarweb',
       ),
     );
   }
@@ -100,6 +133,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(uploadRoutes);
   await app.register(chatParamsRoutes);
   await app.register(booleanQueryRoutes);
+  await app.register(enrichmentRoutes);
   await app.register(wsRoutes);
 
   // Boot the BullMQ inline worker. Phase 2 jobs register their processors
@@ -112,6 +146,8 @@ export async function buildServer(): Promise<FastifyInstance> {
     const PROCESSORS: Record<string, Processor> = {
       'parse-upload': parseUploadProcessor as Processor,
       'data-extract': dataExtractProcessor as Processor,
+      'enrich-batch': enrichBatchProcessor as Processor,
+      'reach-fetch': reachFetchProcessor as Processor,
     };
     startInlineWorker(async (job, token) => {
       const processor = PROCESSORS[job.name];
@@ -121,6 +157,11 @@ export async function buildServer(): Promise<FastifyInstance> {
       }
       return processor(job, token);
     });
+
+    // Phase 3 — M8.4: bridge DataExtractAgent's handoff publish to the
+    // EnrichmentAgent. Mirrors the queue bootstrap above: NODE_ENV=test
+    // skipped so unit tests don't open a Redis subscribe connection.
+    startEnrichmentSubscriber();
   }
 
   return app;

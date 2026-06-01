@@ -114,6 +114,8 @@ model User {
   uploads        Upload[]
   articles       Article[]
   chatParams     ChatParams[]
+  enrichments    Enrichment[]
+  enrichmentJobs EnrichmentJob[]
 
   @@index([role])
   @@index([isActive])
@@ -147,12 +149,14 @@ model Chat {
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages       Message[]
   uploads        Upload[]
   articles       Article[]
   chatParams     ChatParams?
   booleanQueries BooleanQuery[]
+  enrichments    Enrichment[]
+  enrichmentJobs EnrichmentJob[]
 
   @@index([userId, status])
   @@index([createdAt])
@@ -335,9 +339,10 @@ model Article {
   rawData         Json      @default("{}") @map("raw_data")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  upload Upload? @relation(fields: [uploadId], references: [id], onDelete: SetNull)
-  chat   Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  upload     Upload?     @relation(fields: [uploadId], references: [id], onDelete: SetNull)
+  chat       Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrichment Enrichment?
 
   @@index([chatId])
   @@index([userId])
@@ -391,4 +396,125 @@ model BooleanQuery {
 
   @@index([chatId])
   @@map("boolean_queries")
+}
+
+// ─── Phase 3: Enrichment Engine ───────────────────────────────────────────
+
+enum EnrichmentJobType {
+  standard
+  reach
+}
+
+enum EnrichmentJobStatus {
+  queued
+  processing
+  completed
+  failed
+  partial
+}
+
+enum EnrichmentBatchStatus {
+  pending
+  processing
+  completed
+  failed
+  retrying
+}
+
+model Enrichment {
+  id        String  @id @default(uuid()) @db.Uuid
+  articleId String  @unique @map("article_id") @db.Uuid
+  chatId    String  @map("chat_id") @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  batchId   String? @map("batch_id") @db.Uuid
+
+  sentiment        Json
+  themes           Json
+  emotion          Json
+  entities         Json
+  signals          Json
+  reach            Json?
+  socialEngagement Json? @map("social_engagement")
+
+  modelUsed    String   @map("model_used") @db.VarChar(100)
+  tokensInput  Int      @map("tokens_input")
+  tokensOutput Int      @map("tokens_output")
+  processingMs Int      @map("processing_ms")
+  isValid      Boolean  @default(true) @map("is_valid")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  article Article          @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  chat    Chat             @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch   EnrichmentBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([chatId])
+  @@index([userId])
+  @@map("enrichments")
+}
+
+model EnrichmentJob {
+  id                String              @id @default(uuid()) @db.Uuid
+  chatId            String              @map("chat_id") @db.Uuid
+  userId            String              @map("user_id") @db.Uuid
+  totalArticles     Int                 @map("total_articles")
+  processedCount    Int                 @default(0) @map("processed_count")
+  batchCount        Int                 @map("batch_count")
+  batchesCompleted  Int                 @default(0) @map("batches_completed")
+  modelUsed         String              @map("model_used") @db.VarChar(100)
+  enrichmentType    EnrichmentJobType   @map("enrichment_type")
+  totalTokensInput  BigInt              @default(0) @map("total_tokens_input")
+  totalTokensOutput BigInt              @default(0) @map("total_tokens_output")
+  status            EnrichmentJobStatus @default(queued)
+  startedAt         DateTime?           @map("started_at") @db.Timestamptz
+  completedAt       DateTime?           @map("completed_at") @db.Timestamptz
+  errorLog          Json                @default("[]") @map("error_log")
+  dashboardJson     Json?               @map("dashboard_json")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  chat    Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batches EnrichmentBatch[]
+
+  @@index([chatId])
+  @@index([userId])
+  @@index([status])
+  @@map("enrichment_jobs")
+}
+
+model EnrichmentBatch {
+  id              String                @id @default(uuid()) @db.Uuid
+  jobId           String                @map("job_id") @db.Uuid
+  batchNumber     Int                   @map("batch_number")
+  articleIds      String[]              @map("article_ids") @db.Uuid
+  estimatedTokens Int                   @map("estimated_tokens")
+  actualTokensIn  Int?                  @map("actual_tokens_in")
+  actualTokensOut Int?                  @map("actual_tokens_out")
+  status          EnrichmentBatchStatus @default(pending)
+  retryCount      Int                   @default(0) @map("retry_count")
+  processingMs    Int?                  @map("processing_ms")
+  error           String?
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz
+
+  job         EnrichmentJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  enrichments Enrichment[]
+
+  @@index([jobId])
+  @@map("enrichment_batches")
+}
+
+model ReachCache {
+  id              String   @id @default(uuid()) @db.Uuid
+  domain          String   @unique @db.VarChar(255)
+  monthlyVisitors BigInt?  @map("monthly_visitors")
+  globalRank      Int?     @map("global_rank")
+  category        String?  @db.VarChar(100)
+  score           Int?
+  rawResponse     Json     @default("{}") @map("raw_response")
+  fetchedAt       DateTime @default(now()) @map("fetched_at") @db.Timestamptz
+  ttlHours        Int      @default(168) @map("ttl_hours")
+  isValid         Boolean  @default(true) @map("is_valid")
+
+  @@index([fetchedAt])
+  @@map("reach_cache")
 }

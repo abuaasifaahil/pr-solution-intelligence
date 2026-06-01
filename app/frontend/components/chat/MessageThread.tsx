@@ -9,6 +9,9 @@ import { DataPreviewTable } from './DataPreviewTable';
 import { FlowStepPrompt } from './FlowStepPrompt';
 import { BooleanQueryPreview } from './BooleanQueryPreview';
 import { AgentActionPanel } from './AgentActionPanel';
+import { EnrichmentProgressCard } from './EnrichmentProgressCard';
+import { ChipUpArtifact } from './ChipUpArtifact';
+import type { EnrichmentSessionState } from '../../hooks/useEnrichmentSession';
 import type { ChatMessage, ChipDef } from '../../lib/chats';
 import type { UploadStatus, UploadPreview } from '../../lib/uploads';
 import type {
@@ -22,6 +25,8 @@ import type { AgentStep } from './ProcessingSteps';
 import type { AgentActionResult } from './AgentActionPanel';
 
 interface Props {
+  /** Chat id — threaded through to the ChipUp artifact for deep-link share URLs. */
+  chatId: string;
   messages: ChatMessage[];
   onChipPick: (chip: ChipDef) => void;
   onCustomReply?: (text: string) => void;
@@ -53,6 +58,12 @@ interface Props {
   onIntentionPick?: (intention: 'intention_based' | 'comment_based') => void;
   onQueryEdit?: (text: string) => void;
   onQueryConfirm?: () => void;
+
+  // ── Phase 3 — enrichment state (M8.8) ────────────────────────────────────
+  /** When provided and `enrichment.job` exists, an EnrichmentProgressCard
+   *  renders after the chat-completion summary. The card itself handles
+   *  the in-progress → completion transition based on `enrichment.isDone`. */
+  enrichment?: EnrichmentSessionState | null;
 }
 
 /**
@@ -71,6 +82,7 @@ interface Props {
  * orchestrator is the M3 flow and Phase 2 is a separate state machine.
  */
 export function MessageThread({
+  chatId,
   messages,
   onChipPick,
   onCustomReply,
@@ -97,6 +109,7 @@ export function MessageThread({
   onIntentionPick,
   onQueryEdit,
   onQueryConfirm,
+  enrichment,
 }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -207,6 +220,27 @@ export function MessageThread({
           result={agentResult ?? null}
           // Open by default the moment the run completes; user can collapse.
           defaultSummaryOpen={flowState === 'complete'}
+        />
+      )}
+
+      {/* Phase 3 — enrichment progress lands AFTER the data-extract
+          completion summary so the transcript reads:
+            chat → data extract → enrichment → [M8.9 ChipUp]
+          Only mounts when an enrichment job actually exists. */}
+      {flowState === 'complete' && enrichment?.job && (
+        <EnrichmentProgressCard state={enrichment} />
+      )}
+
+      {/* Phase 3 (M8.9) — persistent JSON artifact. Renders once the
+          enrichment service has signalled the dashboard JSON is ready
+          (driven by the `enrichment:json-ready` WS event the M8.7
+          /enrich/json read emits on first cache miss). Lives in the
+          chat thread forever after that. */}
+      {enrichment?.isJsonReady && enrichment.jsonArtifactId && (
+        <ChipUpArtifact
+          chatId={chatId}
+          artifactId={enrichment.jsonArtifactId}
+          articleCount={enrichment.progress.total}
         />
       )}
 

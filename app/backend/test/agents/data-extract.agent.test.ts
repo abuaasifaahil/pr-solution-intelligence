@@ -129,8 +129,12 @@ vi.mock('../../src/lib/prisma-rls.js', () => ({
 const publishChatEventMock = vi.fn(
   async (_chatId: string, _type: string, _payload: unknown) => {},
 );
+const publishAgentBusMock = vi.fn(
+  async (_channel: string, _payload: unknown) => {},
+);
 vi.mock('../../src/lib/event-bus.js', () => ({
   publishChatEvent: publishChatEventMock,
+  publishAgentBus: publishAgentBusMock,
   subscribeChatEvents: vi.fn(),
 }));
 
@@ -192,6 +196,7 @@ describe('DataExtractAgent', () => {
     queryStore.length = 0;
     domainCount = 0;
     publishChatEventMock.mockClear();
+    publishAgentBusMock.mockClear();
     mockChatParams.findUnique.mockClear();
     mockChatParams.update.mockClear();
     mockUpload.findFirst.mockClear();
@@ -321,6 +326,18 @@ describe('DataExtractAgent', () => {
     expect(paramsStore[0]!.flowState).toBe('complete');
     expect(paramsStore[0]!.collectedAt).not.toBeNull();
 
+    // M8.4 contract — handoff publishes on the cross-agent bus after the
+    // 7-step pipeline commits.
+    expect(publishAgentBusMock).toHaveBeenCalledTimes(1);
+    expect(publishAgentBusMock).toHaveBeenCalledWith(
+      'agent:enrichment:incoming',
+      expect.objectContaining({
+        chatId: CHAT,
+        userId: USER,
+        articleIds: [],
+      }),
+    );
+
     // Return value reflects the run.
     expect(result.articlesInserted).toBe(10);
     expect(result.domainsExtracted).toBe(3);
@@ -359,6 +376,10 @@ describe('DataExtractAgent', () => {
 
     // flowState did NOT advance (handoff never ran).
     expect(paramsStore[0]!.flowState).toBe('processing');
+
+    // No cross-agent bus publish on failure either — the handoff only fires
+    // after the full pipeline commits.
+    expect(publishAgentBusMock).not.toHaveBeenCalled();
   });
 
   it('reflect — logs warning when domain extraction rate <90%', async () => {
