@@ -66,17 +66,17 @@ describe('buildOpenSearchDsl', () => {
     expect(q.bool.should![1]!.multi_match.query).toBe('Coca-Cola');
   });
 
-  it('with date range → filter.range.published_date between start/end', () => {
+  it('with date range → filter.range.pubDate between start/end', () => {
     const dsl = buildOpenSearchDsl(
       structured({ dateRange: { start: '2026-04-01', end: '2026-05-01' } }),
     );
     const q = dsl.query as BoolQuery;
     const rangeFilter = q.bool.filter.find(
-      (f): f is { range: { published_date: { gte: string; lte: string; format: string } } } =>
+      (f): f is { range: { pubDate: { gte: string; lte: string; format: string } } } =>
         typeof f === 'object' && f !== null && 'range' in f,
     );
     expect(rangeFilter).toBeDefined();
-    expect(rangeFilter!.range.published_date).toEqual({
+    expect(rangeFilter!.range.pubDate).toEqual({
       gte: '2026-04-01',
       lte: '2026-05-01',
       format: 'yyyy-MM-dd',
@@ -101,7 +101,7 @@ describe('buildOpenSearchDsl', () => {
   it('sort includes _id tiebreak (required for search_after)', () => {
     const dsl = buildOpenSearchDsl(structured());
     expect(dsl.sort).toEqual([
-      { published_date: 'desc' },
+      { pubDate: 'desc' },
       { _id: 'desc' },
     ]);
   });

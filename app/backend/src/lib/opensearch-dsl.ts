@@ -27,8 +27,14 @@
 import { loadEnv } from '../env.js';
 import type { BooleanQueryStructured } from './boolean-query-engine.js';
 
-/** OpenSearch document field that carries the article publish timestamp. */
-const DATE_FIELD = 'published_date';
+/**
+ * OpenSearch document field that carries the article publish timestamp.
+ *
+ * Confirmed by user 2026-06-01 for the `amx-data-*` cluster (UAT). If a
+ * different cluster uses another name (e.g. `@timestamp`, `published_at`),
+ * M9.6's per-user override should expose a per-config field override.
+ */
+const DATE_FIELD = 'pubDate';
 
 /** Minimum DSL surface we emit. Pass directly to `client.search({ body })`. */
 export interface OpenSearchDsl {

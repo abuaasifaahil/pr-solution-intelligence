@@ -49,7 +49,10 @@ const EnvSchema = z.object({
   // Tuning knobs — sensible defaults so devs don't need to set them locally.
   OPENSEARCH_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   OPENSEARCH_PAGE_SIZE: z.coerce.number().int().positive().default(500),
-  OPENSEARCH_MAX_PAGES: z.coerce.number().int().positive().default(20),
+  // Hard cap = OPENSEARCH_PAGE_SIZE × OPENSEARCH_MAX_PAGES articles per chat.
+  // Default 500 × 1 = 500 articles, sized to match enrichment token cap
+  // (MAX_TOKENS_PER_JOB=280_000 ≈ 500 articles × ~500 tokens each + overhead).
+  OPENSEARCH_MAX_PAGES: z.coerce.number().int().positive().default(1),
   OPENSEARCH_CONCURRENCY: z.coerce.number().int().positive().default(3),
   OPENSEARCH_PATTERN_OF_INDEX: z.string().default('YYYY-MM-DD'),
   OPENSEARCH_FIELDS_FOR_QUERY: z.string().default('title,content,description,summary'),
